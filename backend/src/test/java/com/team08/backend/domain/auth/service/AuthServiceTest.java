@@ -9,7 +9,6 @@ import com.team08.backend.domain.auth.repository.RefreshTokenRepository;
 import com.team08.backend.domain.auth.token.JwtProvider;
 import com.team08.backend.domain.auth.token.TokenHasher;
 import com.team08.backend.domain.auth.token.TokenProperties;
-import com.team08.backend.domain.couponreward.outbox.service.CouponRewardOutboxService;
 import com.team08.backend.domain.fixture.UserFixture;
 import com.team08.backend.domain.seller.entity.Seller;
 import com.team08.backend.domain.seller.repository.SellerRepository;
@@ -58,9 +57,6 @@ public class AuthServiceTest {
     private RefreshTokenRepository refreshTokenRepository;
 
     @Mock
-    private CouponRewardOutboxService couponRewardOutboxService;
-
-    @Mock
     private SellerRepository sellerRepository;
 
     private AuthService authService;
@@ -85,7 +81,6 @@ public class AuthServiceTest {
                 refreshTokenRepository,
                 tokenProperties,
                 fixedClock,
-                couponRewardOutboxService,
                 sellerRepository
         );
     }
@@ -205,7 +200,6 @@ public class AuthServiceTest {
         assertThat(savedUser.getEmail()).isEqualTo("test@email.com");
         assertThat(savedUser.getPassword()).isEqualTo("encoded-password");
         assertThat(savedUser.getRole()).isEqualTo(UserRole.ROLE_USER);
-        then(couponRewardOutboxService).should().createUserSignedUpEvent(1L);
     }
 
     @Test
@@ -245,7 +239,6 @@ public class AuthServiceTest {
         ArgumentCaptor<Seller> sellerCaptor = ArgumentCaptor.forClass(Seller.class);
         then(sellerRepository).should().save(sellerCaptor.capture());
         assertThat(sellerCaptor.getValue().getUserId()).isEqualTo(1L);
-        then(couponRewardOutboxService).shouldHaveNoInteractions();
     }
 
     @Test

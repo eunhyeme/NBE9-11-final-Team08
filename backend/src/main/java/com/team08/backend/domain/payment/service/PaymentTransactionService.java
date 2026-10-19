@@ -1,12 +1,9 @@
 package com.team08.backend.domain.payment.service;
 
 import com.team08.backend.domain.enrollment.repository.EnrollmentRepository;
-import com.team08.backend.domain.issuedcoupon.dto.CouponUsageResult;
-import com.team08.backend.domain.issuedcoupon.service.IssuedCouponService;
 import com.team08.backend.domain.order.entity.Order;
 import com.team08.backend.domain.order.entity.OrderStatus;
 import com.team08.backend.domain.order.repository.OrderRepository;
-import com.team08.backend.domain.ordercouponusage.repository.OrderCouponUsageRepository;
 import com.team08.backend.domain.orderitem.entity.OrderItem;
 import com.team08.backend.domain.orderitem.repository.OrderItemRepository;
 import com.team08.backend.domain.payment.client.TossPaymentException;
@@ -54,8 +51,6 @@ public class PaymentTransactionService {
     private final OrderRepository orderRepository;
     private final OrderItemRepository orderItemRepository;
     private final EnrollmentRepository enrollmentRepository;
-    private final IssuedCouponService issuedCouponService;
-    private final OrderCouponUsageRepository orderCouponUsageRepository;
     private final PaymentSuccessOutboxService paymentSuccessOutboxService;
     private final Clock clock;
 
@@ -131,8 +126,7 @@ public class PaymentTransactionService {
         validateConfirmableOrder(order);
         validateConfirmablePayment(existingPayment);
 
-        int expectedDiscount = calculateExpectedDiscounts(userId, request.itemCouponIds(), request.stackableCouponId(), order, findOrderItems(order));
-        validatePaymentAmount(order, request.amount(), expectedDiscount);
+        validatePaymentAmount(order, request.amount());
 
         List<OrderItem> orderItems = findOrderItems(order);
         validateDuplicateEnrollment(userId, orderItems);
@@ -154,10 +148,7 @@ public class PaymentTransactionService {
                 order.getOrderNumber(),
                 request.amount(),
                 payment.getId(),
-                attempt.getId(),
-                request.itemCouponIds(),
-                request.stackableCouponId(),
-                expectedDiscount
+                attempt.getId()
         );
     }
 
@@ -178,8 +169,8 @@ public class PaymentTransactionService {
         PaymentAttempt attempt = findAttempt(context.attemptId());
         LocalDateTime completedAt = approvedAtOrNow(providerResponse.approvedAt());
 
-        if (!isValidProviderPaymentResult(providerResponse, order, context.expectedDiscount())) {
-            String mismatchCode = providerMismatchCode(context.providerType(), providerResponse, order, context.expectedDiscount());
+        if (!isValidProviderPaymentResult(providerResponse, order)) {
+            String mismatchCode = providerMismatchCode(context.providerType(), providerResponse, order);
             attempt.markUnknown(mismatchCode, "Provider payment result does not match order.", completedAt);
             payment.markUnknown(
                     providerResponse.paymentKey(),
@@ -209,19 +200,6 @@ public class PaymentTransactionService {
         attempt.succeed(providerResponse.paymentKey(), completedAt);
         payment.succeed(providerResponse.paymentKey(), providerResponse.method(), completedAt);
         Payment savedPayment = paymentRepository.save(payment);
-
-        if ((context.itemCouponIds() != null && !context.itemCouponIds().isEmpty()) || context.stackableCouponId() != null) {
-            CouponUsageResult usageResult = issuedCouponService.useCouponsForOrder(
-                    context.userId(),
-                    context.itemCouponIds(),
-                    context.stackableCouponId(),
-                    orderItems,
-                    order.getTotalPrice(),
-                    order.getId()
-            );
-            order.applyDiscount(usageResult.totalDiscount());
-            orderCouponUsageRepository.saveAll(usageResult.usages());
-        }
 
         markOrderPaid(order, completedAt);
         paymentSuccessOutboxService.createIfAbsent(savedPayment.getId(), order.getId(), context.userId());
@@ -410,15 +388,8 @@ public class PaymentTransactionService {
         return ConfirmPaymentResponse.from(payment, order);
     }
 
-    private int calculateExpectedDiscounts(Long userId, java.util.Map<Long, Long> itemCouponIds, Long stackableCouponId, Order order, List<OrderItem> orderItems) {
-        if ((itemCouponIds == null || itemCouponIds.isEmpty()) && stackableCouponId == null) {
-            return 0;
-        }
-        return issuedCouponService.calculateExpectedDiscounts(userId, itemCouponIds, stackableCouponId, orderItems, order.getTotalPrice());
-    }
-
-    private void validatePaymentAmount(Order order, int requestAmount, int expectedDiscount) {
-        if (order.getFinalPrice() - expectedDiscount != requestAmount) {
+    private void validatePaymentAmount(Order order, int requestAmount) {
+        if (order.getFinalPrice() != requestAmount) {
             throw new CustomException(ErrorCode.PAYMENT_AMOUNT_MISMATCH);
         }
     }
@@ -488,14 +459,9 @@ public class PaymentTransactionService {
                 || "DECLINED".equals(response.status());
     }
 
-    private boolean isValidTossPaymentResult(TossPaymentResponse response, Order order, int expectedDiscount) {
+    private boolean isValidProviderPaymentResult(PaymentProviderConfirmResponse response, Order order) {
         return order.getOrderNumber().equals(response.orderId())
-                && (order.getFinalPrice() - expectedDiscount) == response.totalAmount();
-    }
-
-    private boolean isValidProviderPaymentResult(PaymentProviderConfirmResponse response, Order order, int expectedDiscount) {
-        return order.getOrderNumber().equals(response.orderId())
-                && (order.getFinalPrice() - expectedDiscount) == response.totalAmount();
+                && order.getFinalPrice() == response.totalAmount();
     }
 
     private boolean isValidRecoveredProviderPayment(PaymentProviderLookupResponse response, PaymentRecoveryTarget target) {
@@ -623,13 +589,12 @@ public class PaymentTransactionService {
     private String providerMismatchCode(
             PaymentProviderType providerType,
             PaymentProviderConfirmResponse response,
-            Order order,
-            int expectedDiscount
+            Order order
     ) {
         if (!order.getOrderNumber().equals(response.orderId())) {
             return providerType.name() + "_ORDER_MISMATCH";
         }
-        if ((order.getFinalPrice() - expectedDiscount) != response.totalAmount()) {
+        if (order.getFinalPrice() != response.totalAmount()) {
             return providerType.name() + "_AMOUNT_MISMATCH";
         }
         return providerMismatchCode(providerType);
@@ -667,9 +632,6 @@ public class PaymentTransactionService {
             int amount,
             Long paymentId,
             Long attemptId,
-            java.util.Map<Long, Long> itemCouponIds,
-            Long stackableCouponId,
-            int expectedDiscount,
             ConfirmPaymentResponse idempotentResponse
     ) {
         public static TossPaymentProcessingContext requested(
@@ -678,10 +640,7 @@ public class PaymentTransactionService {
                 String orderNumber,
                 int amount,
                 Long paymentId,
-                Long attemptId,
-                java.util.Map<Long, Long> itemCouponIds,
-                Long stackableCouponId,
-                int expectedDiscount
+                Long attemptId
         ) {
             return requested(
                     PaymentProviderType.TOSS,
@@ -690,10 +649,7 @@ public class PaymentTransactionService {
                     orderNumber,
                     amount,
                     paymentId,
-                    attemptId,
-                    itemCouponIds,
-                    stackableCouponId,
-                    expectedDiscount
+                    attemptId
             );
         }
 
@@ -704,10 +660,7 @@ public class PaymentTransactionService {
                 String orderNumber,
                 int amount,
                 Long paymentId,
-                Long attemptId,
-                java.util.Map<Long, Long> itemCouponIds,
-                Long stackableCouponId,
-                int expectedDiscount
+                Long attemptId
         ) {
             return new TossPaymentProcessingContext(
                     providerType,
@@ -717,15 +670,12 @@ public class PaymentTransactionService {
                     amount,
                     paymentId,
                     attemptId,
-                    itemCouponIds,
-                    stackableCouponId,
-                    expectedDiscount,
                     null
             );
         }
 
         public static TossPaymentProcessingContext replay(ConfirmPaymentResponse response) {
-            return new TossPaymentProcessingContext(null, null, null, null, 0, null, null, null, null, 0, response);
+            return new TossPaymentProcessingContext(null, null, null, null, 0, null, null, response);
         }
 
         public boolean isIdempotentReplay() {

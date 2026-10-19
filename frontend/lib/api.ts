@@ -1,8 +1,5 @@
 // frontend/lib/api.ts
 import type {
-  AdminCoupon,
-  BoardPost,
-  Coupon,
   Course,
   CourseCardResponse,
   CategoryResponse,
@@ -19,37 +16,16 @@ import type {
   PaymentResponse,
   EnrolledCourse,
   EnrolledCourseResponse,
-  MyComment,
-  MyAnswer,
-  QnaPost,
-  Study,
-  StudyDetailResponse,
-  StudyMember,
-  StudyMemberResponse,
-  StudyIdResponse,
-  StudyReport,
-  MyStudyReport,
   UserProfile,
   SignupRequest,
   LoginRequest,
-  StudySummaryResponse,
-  StudyActivityResponse,
-  AiFeedbackResponse,
-  AttendanceResponse,
-  AttendanceStatusResponse,
-  CouponListResponse,
   CourseCreateRequest,
   CourseUpdateRequest,
-  AdminCouponPolicyRequest,
-  AdminCouponPolicyResponse,
   LectureEnterResponse,
   LectureProgressResponse,
   CourseLectureProgressResponse,
   LearningEventType,
   LearningEventResponse,
-  QnaQuestionResponse,
-  QnaAnswerResponse,
-  StudyReportResponse,
   AdminOverview,
   DailySessionPoint,
   CourseStatRow,
@@ -61,9 +37,6 @@ import type {
   SellerAnalytics,
   SellerCourseDetail,
   LecturePauses,
-  FeedCursor,
-  FeedCursorResponse,
-  CouponIssueRequestResponse,
 } from './types'
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8080'
@@ -185,8 +158,6 @@ const handleUnauthorized = () => {
     const isPublicRoute =
       pathname === '/' ||
       pathname.startsWith('/courses') ||
-      pathname.startsWith('/study') ||
-      pathname === '/events' ||
       pathname === '/login' ||
       pathname === '/signup' ||
       pathname === '/seller/signup' ||
@@ -316,7 +287,6 @@ async function requestText(
   }
 }
 
-
 async function mutate<T>(
   path: string,
   method: string,
@@ -427,45 +397,8 @@ const mapCourseDetailToCourse = (detail: CourseDetailResponse): Course => ({
   statusReason: detail.statusReason ?? null,
 })
 
-const mapStudyDetailToStudy = (
-  detail: StudyDetailResponse,
-  posts: StudyActivityResponse[] = [],
-): Study => ({
-  id: detail.studyId.toString(),
-  courseId: detail.courseId.toString(),
-  name: detail.title,
-  intro: detail.description,
-  status: detail.status as Study['status'],
-  ownerName: detail.ownerNickname,
-  myRole: (detail.myRole?.toLowerCase() ?? 'viewer') as Study['myRole'],
-  progress: 0,
-  // 멤버 목록은 별도 엔드포인트(/api/studies/{id}/members)에서 조회한다.
-  members: [],
-  applicants: [],
-  announcements: [],
-  posts: posts.map((post) => ({
-    id: post.activityId?.toString() || '0',
-    title: post.content.split('\n')[0] || '학습 활동',
-    author: post.authorId?.toString() || '',
-    content: post.content,
-    createdAt: post.createdAt,
-    comments: [],
-  })),
-})
-
-const mapStudyMemberResponseToMember = (
-  member: StudyMemberResponse,
-): StudyMember => ({
-  id: member.userId.toString(),
-  name: member.nickname,
-  avatarUrl: member.profileImage,
-  progress: 0,
-  role: member.role.toLowerCase() as StudyMember['role'],
-  joinedAt: parseDateToString(member.joinedAt),
-})
-
 const mapEnrolledCourseResponseToCourse = (course: EnrolledCourseResponse): EnrolledCourse => ({
-  id: String(course.studyId ?? course.courseId),
+  id: String(course.courseId),
   courseId: String(course.courseId),
   title: course.title,
   instructor: course.instructorNickname,
@@ -474,214 +407,6 @@ const mapEnrolledCourseResponseToCourse = (course: EnrolledCourseResponse): Enro
   totalLectures: course.totalLectures ?? 0,
   completedLectures: course.completedLectures ?? 0,
   status: course.progressRate >= 100 ? '완료' : '진행 중',
-})
-
-const mapUseTypeToBackend = (useType: string): any => {
-  if (useType === 'SINGLE') return 'SINGLE_USE'
-  if (useType === 'MULTI') return 'MULTI_USE'
-  return useType
-}
-
-const mapUseTypeToFrontend = (useType: string): any => {
-  if (useType === 'SINGLE_USE') return 'SINGLE'
-  if (useType === 'MULTI_USE') return 'MULTI'
-  return useType
-}
-
-const mapDiscountTypeToBackend = (discountType: string): any => {
-  if (discountType === 'RATE') return 'PERCENT'
-  return discountType
-}
-
-const mapDiscountTypeToFrontend = (discountType: string): any => {
-  if (discountType === 'PERCENT') return 'RATE'
-  return discountType
-}
-
-const parseDateToString = (value: any): string => {
-  if (!value) return ''
-  if (Array.isArray(value)) {
-    const [year, month, day, hour = 0, minute = 0, second = 0] = value
-    const pad = (n: number) => String(n).padStart(2, '0')
-    return `${year}-${pad(month)}-${pad(day)}T${pad(hour)}:${pad(minute)}:${pad(second)}`
-  }
-  if (typeof value === 'string') {
-    return value
-  }
-  if (value instanceof Date) {
-    const pad = (n: number) => String(n).padStart(2, '0')
-    return `${value.getFullYear()}-${pad(value.getMonth() + 1)}-${pad(value.getDate())}T${pad(value.getHours())}:${pad(value.getMinutes())}:${pad(value.getSeconds())}`
-  }
-  return String(value)
-}
-
-const toLocalDateTime = (value: any) => {
-  const str = parseDateToString(value)
-  return str ? str.slice(0, 16) : ''
-}
-
-const mapCouponListToCoupon = (coupon: CouponListResponse): Coupon => {
-  const isRate = coupon.discountType === 'RATE' || coupon.discountType === 'PERCENT'
-  const isAvailable = coupon.status === 'ISSUED'
-  const category = isAvailable ? '진행 중인 이벤트' : '종료된 이벤트'
-  const expiredAtStr = parseDateToString(coupon.expiredAt)
-  const usageTypeStr = coupon.usageType === 'MULTI' || coupon.usageType === 'MULTI_USE' ? '다회용' : '1회용'
-
-  let couponTargetStr = '전체 적용'
-  if (coupon.couponTarget === 'CATEGORY') {
-    couponTargetStr = coupon.categoryIds && coupon.categoryIds.length > 0
-      ? `특정 카테고리 (${coupon.categoryIds.length}개)`
-      : '특정 카테고리 적용'
-  } else if (coupon.couponTarget === 'COURSE') {
-    couponTargetStr = coupon.courseIds && coupon.courseIds.length > 0
-      ? `특정 강좌 (${coupon.courseIds.length}개)`
-      : '특정 강좌 적용'
-  }
-
-  return {
-    id: coupon.issuedCouponId.toString(),
-    policyId: coupon.policyId?.toString(),
-    name: coupon.couponName,
-    amount: isRate
-      ? `${coupon.discountValue}% 할인`
-      : `${coupon.discountValue.toLocaleString()}원 할인`,
-    condition: expiredAtStr ? `${expiredAtStr.slice(0, 10).replace(/-/g, '.')}까지` : coupon.status,
-    category: category,
-    type: isRate ? 'discount' : 'firstcome',
-    status: isAvailable ? 'ACTIVE' : 'ENDED',
-    originalStatus: coupon.status,
-    usageType: usageTypeStr,
-    isStackable: coupon.isStackable ?? (coupon as any).stackable ?? false,
-    maxDiscountAmount: coupon.maxDiscountAmount,
-    minOrderAmount: coupon.minOrderAmount,
-    couponTarget: couponTargetStr,
-    categoryIds: coupon.categoryIds || [],
-    courseIds: coupon.courseIds || [],
-    endDate: expiredAtStr,
-  }
-}
-
-const inferCouponStatus = (startAt: string, endAt: string): AdminCoupon['status'] => {
-  const now = Date.now()
-  const start = startAt ? new Date(startAt).getTime() : Number.NEGATIVE_INFINITY
-  const end = endAt ? new Date(endAt).getTime() : Number.POSITIVE_INFINITY
-
-  if (Number.isFinite(start) && now < start) return 'SCHEDULED'
-  if (Number.isFinite(end) && now > end) return 'ENDED'
-  return 'ACTIVE'
-}
-
-const mapAdminCouponPolicyToUserCoupon = (policy: AdminCouponPolicyResponse): Coupon => {
-  const isRate = policy.discountType === 'PERCENT' || policy.discountType === 'RATE'
-  const startAt = toLocalDateTime(policy.issueStartDate)
-  const endAt = toLocalDateTime(policy.issueEndDate)
-
-  const isExhausted = policy.totalQuantity !== null && policy.totalQuantity !== undefined && policy.totalQuantity <= 0
-  const status = isExhausted ? 'ENDED' : inferCouponStatus(startAt, endAt)
-  const category = (status === 'ACTIVE' || status === 'SCHEDULED') ? '진행 중인 이벤트' : '종료된 이벤트'
-
-  let condition = ''
-  if (policy.validDays) {
-    condition = `발급 후 ${policy.validDays}일`
-  } else if (endAt) {
-    condition = `${endAt.slice(0, 10).replace(/-/g, '.')}까지`
-  } else {
-    condition = '무기한'
-  }
-
-  let type: Coupon['type'] = 'discount'
-  if (policy.couponType === 'FCFS') {
-    type = 'firstcome'
-  }
-
-  let couponTargetStr = '전체 적용'
-  if (policy.couponTarget === 'CATEGORY') {
-    couponTargetStr = policy.categoryIds && policy.categoryIds.length > 0
-      ? `특정 카테고리 (${policy.categoryIds.length}개)`
-      : '특정 카테고리 적용'
-  } else if (policy.couponTarget === 'COURSE') {
-    couponTargetStr = policy.courseIds && policy.courseIds.length > 0
-      ? `특정 강좌 (${policy.courseIds.length}개)`
-      : '특정 강좌 적용'
-  }
-
-  const usageTypeStr = policy.usageType === 'MULTI' || policy.usageType === 'MULTI_USE' ? '다회용' : '1회용'
-
-  return {
-    id: policy.id.toString(),
-    policyId: policy.id.toString(),
-    name: policy.name,
-    amount: isRate
-      ? `${policy.discountValue}% 할인`
-      : `${policy.discountValue.toLocaleString()}원 할인`,
-    condition,
-    category,
-    type,
-    status,
-    startDate: startAt,
-    endDate: endAt,
-    validDays: policy.validDays,
-    couponTarget: couponTargetStr,
-    usageType: usageTypeStr,
-    isStackable: policy.isStackable ?? (policy as any).stackable ?? false,
-    maxDiscountAmount: policy.maxDiscountAmount,
-    minOrderAmount: policy.minOrderAmount,
-    categoryIds: policy.categoryIds || [],
-    courseIds: policy.courseIds || [],
-    totalQuantity: policy.totalQuantity,
-  }
-}
-
-const mapAdminCouponPolicyToCoupon = (policy: AdminCouponPolicyResponse): AdminCoupon => {
-  const startAt = toLocalDateTime(policy.issueStartDate)
-  const endAt = toLocalDateTime(policy.issueEndDate)
-  const isExhausted = policy.totalQuantity !== null && policy.totalQuantity !== undefined && policy.totalQuantity <= 0
-  const status = isExhausted ? 'ENDED' : inferCouponStatus(startAt, endAt)
-
-  return {
-    id: policy.id,
-    name: policy.name,
-    totalQuantity: policy.totalQuantity ?? null,
-    type: policy.couponType,
-    autoIssueType: policy.autoIssueType ?? null,
-    target: policy.couponTarget,
-    useType: mapUseTypeToFrontend(policy.usageType),
-    stackable: policy.isStackable ?? (policy as any).stackable ?? false,
-    discountType: mapDiscountTypeToFrontend(policy.discountType),
-    discountValue: policy.discountValue,
-    maxDiscount: policy.maxDiscountAmount ?? null,
-    minOrderAmount: policy.minOrderAmount ?? null,
-    validDays: policy.validDays ?? null,
-    startAt,
-    endAt,
-    status,
-    issuedCount: 0,
-    targetCategories: policy.categoryIds?.map(String) ?? [],
-    targetCourses: policy.courseIds?.map(String) ?? [],
-  }
-}
-
-const mapAdminCouponToPolicyRequest = (coupon: AdminCoupon): AdminCouponPolicyRequest => ({
-  name: coupon.name,
-  couponTarget: coupon.target,
-  couponType: coupon.type,
-  autoIssueType: coupon.type === 'AUTO' ? (coupon.autoIssueType ?? null) : null,
-  totalQuantity: coupon.totalQuantity,
-  usageType: mapUseTypeToBackend(coupon.useType),
-  isStackable: coupon.stackable,
-  discountType: mapDiscountTypeToBackend(coupon.discountType),
-  discountValue: coupon.discountValue,
-  maxDiscountAmount: coupon.maxDiscount,
-  minOrderAmount: coupon.minOrderAmount,
-  validDays: coupon.validDays,
-  issueStartDate: coupon.startAt || null,
-  issueEndDate: coupon.endAt || null,
-  categoryIds: coupon.target === 'CATEGORY'
-    ? (coupon.targetCategories ?? []).map(Number).filter(Number.isFinite)
-    : [],
-  courseIds: coupon.target === 'COURSE'
-    ? (coupon.targetCourses ?? []).map(Number).filter(Number.isFinite)
-    : [],
 })
 
 const SEEDED_COURSES: Record<number, { title: string; description: string; price: number; categoryId: number; instructorId: number; thumbnail: string; status: 'DRAFT' | 'PUBLISHED' | 'CLOSED' }> = {
@@ -783,125 +508,6 @@ const removeCourseDraft = (id: string | number) => {
       const nextDraftIds = draftIds.filter((dId: string) => dId !== String(id))
       localStorage.setItem('course_draft_ids', JSON.stringify(nextDraftIds))
     } catch (e) { }
-  }
-}
-
-const formatWatchTime = (totalSeconds: number): string => {
-  if (!totalSeconds || totalSeconds <= 0) return '0분'
-  const hours = Math.floor(totalSeconds / 3600)
-  const minutes = Math.floor((totalSeconds % 3600) / 60)
-  if (hours > 0) return `${hours}시간 ${minutes}분`
-  return `${minutes}분`
-}
-
-// 백엔드 StudyReportResponse 를 화면용 StudyReport(studyName/userName 제외)로 변환한다.
-const mapStudyReportToDisplay = (
-  raw: StudyReportResponse,
-): Omit<StudyReport, 'studyName' | 'userName'> => {
-  // 백엔드가 LocalDate를 [년,월,일] 배열로 직렬화하므로(WRITE_DATES_AS_TIMESTAMPS),
-  // 배열/문자열 양쪽 모두에서 MM-DD를 안전하게 뽑아낸다.
-  const toMonthDay = (date: unknown): string => {
-    if (Array.isArray(date)) {
-      const [, month, day] = date as number[]
-      if (month == null || day == null) return ''
-      const pad = (n: number) => String(n).padStart(2, '0')
-      return `${pad(month)}-${pad(day)}`
-    }
-    return typeof date === 'string' ? date.slice(5) : ''
-  }
-
-  const progressData = (raw.dailyProgress ?? []).map((d) => ({
-    day: toMonthDay(d.date), // MM-DD
-    progress: Number(d.progressRate ?? 0),
-    minutes: 0,
-  }))
-
-  const activity = raw.dailyActivityMap ?? {}
-  const activeDates = Object.keys(activity).sort()
-  let calendar: StudyReport['calendar'] = []
-  if (activeDates.length > 0) {
-    const start = new Date(activeDates[0])
-    const end = new Date()
-    const max = Math.max(...Object.values(activity), 1)
-    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-      const key = d.toISOString().slice(0, 10)
-      const value = activity[key] ?? 0
-      calendar.push({
-        date: key,
-        active: value > 0,
-        level: value > 0 ? Math.min(3, Math.ceil((value / max) * 3)) : 0,
-      })
-    }
-  }
-
-  let period = '기능 없음'
-  if (activeDates.length > 0) {
-    period = `${activeDates[0]} ~ ${activeDates[activeDates.length - 1]}`
-  }
-
-  return {
-    period,
-    totalStudyTime: formatWatchTime(raw.totalWatchTime ?? 0),
-    commentCount: raw.totalQnaCount ?? 0,
-    studyDays: raw.studyDays ?? 0,
-    progressData,
-    calendar,
-    topLectures: (raw.topLectures ?? []).map((l) => l.title),
-    updatedAt: raw.updatedAt,
-    nextRegenerableAt: raw.nextRegenerableAt,
-  }
-}
-
-// 여러 스터디의 원본 리포트를 하나로 합산한 가상 StudyReportResponse 를 만든다.
-// 합산 의미: 총시청시간/QnA수는 단순 합, 학습일수는 날짜 합집합, 일별 활동은 날짜별 합,
-// 일별 진도는 날짜별 평균(전체 진척 추세), top 강의는 시청시간 기준 상위 5개.
-const buildAggregateReportRaw = (
-  raws: StudyReportResponse[],
-): StudyReportResponse => {
-  const dailyActivityMap: Record<string, number> = {}
-  for (const r of raws) {
-    for (const [date, count] of Object.entries(r.dailyActivityMap ?? {})) {
-      dailyActivityMap[date] = (dailyActivityMap[date] ?? 0) + (count ?? 0)
-    }
-  }
-
-  // 날짜별 진도율 평균
-  const progressSum: Record<string, { sum: number; n: number }> = {}
-  for (const r of raws) {
-    for (const d of r.dailyProgress ?? []) {
-      const key = String(d.date)
-      const acc = progressSum[key] ?? { sum: 0, n: 0 }
-      acc.sum += Number(d.progressRate ?? 0)
-      acc.n += 1
-      progressSum[key] = acc
-    }
-  }
-  const dailyProgress = Object.entries(progressSum)
-    .map(([date, { sum, n }]) => ({ date, progressRate: n > 0 ? sum / n : 0 }))
-
-  const topLectures = raws
-    .flatMap((r) => r.topLectures ?? [])
-    .sort((a, b) => (b.watchTimeSeconds ?? 0) - (a.watchTimeSeconds ?? 0))
-    .slice(0, 5)
-
-  const studyDays = Object.values(dailyActivityMap).filter((v) => v > 0).length
-  const progressValues = raws.map((r) => Number(r.progressRate ?? 0))
-  const progressRate = progressValues.length
-    ? progressValues.reduce((a, b) => a + b, 0) / progressValues.length
-    : 0
-
-  return {
-    studyId: 0,
-    totalWatchTime: raws.reduce((a, r) => a + (r.totalWatchTime ?? 0), 0),
-    totalQnaCount: raws.reduce((a, r) => a + (r.totalQnaCount ?? 0), 0),
-    progressRate,
-    studyDays,
-    topLectures,
-    dailyProgress,
-    dailyActivityMap,
-    updatedAt: raws.map((r) => r.updatedAt).sort().at(-1) ?? '',
-    status: 'LOADED',
-    nextRegenerableAt: null,
   }
 }
 
@@ -1145,31 +751,6 @@ export const api = {
       watchedDeltaSeconds,
     }),
 
-  // QnA
-  getQna: (lectureId: string | number) =>
-    request<PageResponse<QnaQuestionResponse>>(`/api/lectures/${lectureId}/qna`, {
-      content: [],
-      pageable: { pageNumber: 0, pageSize: 20 },
-      totalElements: 0,
-      totalPages: 0,
-      last: true,
-    }),
-  createQuestion: (lectureId: string | number, title: string, content: string) =>
-    mutate<QnaQuestionResponse>(`/api/lectures/${lectureId}/qna/questions`, 'POST', { title, content }),
-
-  // QnA 답변 (해당 강좌의 강사/판매자 전용 — 백엔드 MANAGE_ANSWER 로 강제)
-  createAnswer: (questionId: string | number, content: string) =>
-    mutate<QnaAnswerResponse>(`/api/qna/questions/${questionId}/answers`, 'POST', { content }),
-  updateAnswer: (questionId: string | number, content: string) =>
-    mutate<QnaAnswerResponse>(`/api/qna/questions/${questionId}/answers`, 'PUT', { content }),
-  deleteAnswer: (questionId: string | number) =>
-    mutate<void>(`/api/qna/questions/${questionId}/answers`, 'DELETE'),
-
-  // Reflections
-  getReflection: (lectureId: string | number) => request<any>(`/api/lectures/${lectureId}/reflections`, null),
-  createReflection: (lectureId: string | number, content: string) => mutate<any>(`/api/lectures/${lectureId}/reflections`, 'POST', { content }),
-  updateReflection: (lectureId: string | number, reflectionId: number | string, content: string) => mutate<any>(`/api/lectures/${lectureId}/reflections/${reflectionId}`, 'PUT', { content }),
-
   // Cart & Order
   getCart: () => request<CartResponse>('/api/cart', { items: [], totalPrice: 0 }, true, false),
   addToCart: (courseId: number) => mutate<CartResponse>('/api/cart/items', 'POST', { courseId }),
@@ -1194,16 +775,12 @@ export const api = {
     paymentKey: string,
     method: string,
     amount: number,
-    itemCouponIds?: Record<number, number> | null,
-    stackableCouponId?: number | null,
     idempotencyKey?: string | null,
   ) =>
     mutate<ConfirmPaymentResponse>(`/api/payments/${orderId}/confirm`, 'POST', {
       paymentKey,
       method,
       amount,
-      itemCouponIds,
-      stackableCouponId,
       idempotencyKey,
     }),
   confirmTossPayment: (orderId: number, request: ConfirmTossPaymentRequest) =>
@@ -1219,134 +796,9 @@ export const api = {
     paymentKey: string,
     method: string,
     amount: number,
-    issuedCouponId?: number | null,
     idempotencyKey?: string | null,
   ) =>
-    api.confirmMockPayment(orderId, paymentKey, method, amount, issuedCouponId, idempotencyKey),
-
-  // Studies
-  getMyStudies: async (): Promise<EnrolledCourse[]> => {
-    const summaryRes = await request<StudySummaryResponse[]>('/api/studies/me', [])
-    if (!Array.isArray(summaryRes)) return []
-
-    const enrolledCoursesPromises = summaryRes.map(async (study) => {
-      // Fetch detailed study information to determine accurate status
-      const detail = await request<StudyDetailResponse | undefined>(`/api/studies/${study.studyId}`, undefined)
-      let status: EnrolledCourse['status'] = '진행 중' // Default to '진행 중'
-
-      if (detail?.status === 'CLOSED') {
-        status = '완료' // Map 'CLOSED' from backend to '완료' for frontend display
-      }
-      // 진행도/강의 수는 백엔드 StudySummaryResponse 에서 집계해 내려준다.
-      return {
-        id: study.studyId.toString(),
-        courseId: detail?.courseId?.toString(),
-        title: study.title,
-        instructor: study.ownerNickname,
-        thumbnailUrl: '/placeholder.svg',
-        progress: study.progressRate ?? 0,
-        totalLectures: study.totalLectures ?? 0,
-        completedLectures: study.completedLectures ?? 0,
-        status: status,
-      }
-    })
-    return Promise.all(enrolledCoursesPromises)
-  },
-
-  getStudyActivities: (studyId: number, page = 0, size = 10) =>
-    request<PageResponse<StudyActivityResponse>>(
-      `/api/studies/${studyId}/activities?page=${page}&size=${size}`,
-      { content: [], pageable: { pageNumber: page, pageSize: size }, totalElements: 0, totalPages: 0, last: true }
-    ),
-
-  getMyStudyActivities: (page = 0, size = 10) =>
-    request<PageResponse<StudyActivityResponse>>(
-      `/api/study-activities/me?page=${page}&size=${size}`,
-      { content: [], pageable: { pageNumber: page, pageSize: size }, totalElements: 0, totalPages: 0, last: true },
-    ),
-
-  getStudyFeed: (studyId: string | number, cursor?: FeedCursor | null, size = 10) => {
-    const params = new URLSearchParams({ size: String(size) })
-    if (cursor) {
-      params.set('cursorOccurredAt', toIsoLocalDateTime(cursor.occurredAt))
-      params.set('cursorId', String(cursor.id))
-    }
-
-    return request<FeedCursorResponse>(
-      `/api/studies/${studyId}/feed?${params.toString()}`,
-      { items: [], nextCursor: null, hasNext: false },
-    )
-  },
-
-  createStudyActivity: (studyId: number | string, content: string) =>
-    mutate<StudyActivityResponse>(`/api/studies/${studyId}/activities`, 'POST', { content }),
-
-  getStudy: async (studyId: string | number): Promise<Study | undefined> => {
-    const detail = await request<StudyDetailResponse | undefined>(`/api/studies/${studyId}`, undefined)
-
-    if (!detail) return undefined
-
-    return mapStudyDetailToStudy(detail)
-  },
-
-  getStudyMembers: async (studyId: string | number): Promise<StudyMember[]> => {
-    const members = await request<StudyMemberResponse[]>(
-      `/api/studies/${studyId}/members`,
-      [],
-    )
-    if (!Array.isArray(members)) return []
-    return members.map(mapStudyMemberResponseToMember)
-  },
-
-  getStudyForEntry: async (studyId: string | number): Promise<Study | undefined> => {
-    const study = await api.getStudy(studyId)
-    if (!study) return undefined
-
-    const profile = await api.getProfile()
-    const isAdmin = profile ? profile.isAdmin : false
-
-    if (!isAdmin) {
-      const enrolled = await api.isCourseEnrollmentActive(study.courseId)
-      if (!enrolled) return undefined
-    }
-
-    return study
-  },
-
-  getStudyIdByCourseId: async (courseId: string | number): Promise<string | null> => {
-    const res = await request<StudyIdResponse | null>(`/api/studies/by-course/${courseId}`, null)
-
-    return res?.studyId ? res.studyId.toString() : null
-  },
-
-  getBoardPosts: async (studyId: string | number): Promise<StudyActivityResponse[]> => {
-    const numericStudyId = Number(studyId)
-    if (!Number.isFinite(numericStudyId)) return []
-    return (await api.getStudyActivities(numericStudyId)).content
-  },
-
-  getBoardPost: async (
-    studyId: string | number,
-    postId: string | number,
-  ): Promise<StudyActivityResponse | undefined> => {
-    const numericStudyId = Number(studyId)
-    const numericPostId = Number(postId)
-    if (!Number.isFinite(numericStudyId) || !Number.isFinite(numericPostId)) return undefined
-    return request<StudyActivityResponse | undefined>(
-      `/api/studies/${numericStudyId}/activities/${numericPostId}`,
-      undefined,
-    )
-  },
-
-  generateAiFeedback: (studyId: number, activityId: number) =>
-    mutate<AiFeedbackResponse>(`/api/studies/${studyId}/activities/${activityId}/ai-feedback`, 'POST'),
-
-  getAiFeedback: (studyId: number, activityId: number) =>
-    request<AiFeedbackResponse | null>(`/api/studies/${studyId}/activities/${activityId}/ai-feedback`, null),
-
-  // Attendance
-  getAttendance: () => request<AttendanceStatusResponse | null>('/api/attendances/me', null),
-  checkAttendance: () => mutate<AttendanceResponse>('/api/attendances', 'POST'),
+    api.confirmMockPayment(orderId, paymentKey, method, amount, idempotencyKey),
 
   // Learning events
   recordLearningEvent: (data: {
@@ -1377,88 +829,6 @@ export const api = {
     )
   },
 
-  // Coupons & Admin
-  getCoupons: async () => {
-    const result = await request<PageResponse<AdminCouponPolicyResponse> | AdminCouponPolicyResponse[] | null>(
-      '/api/coupons?size=1000',
-      null,
-      false,
-      false,
-    )
-    const content = Array.isArray(result) ? result : (result?.content ?? [])
-    return content
-      .filter((policy) => policy.couponType === 'NORMAL' || policy.couponType === 'FCFS')
-      .map(mapAdminCouponPolicyToUserCoupon)
-  },
-  getMyCoupons: async () => {
-    const coupons = await request<CouponListResponse[]>('/api/coupons/me', [])
-    return coupons.map(mapCouponListToCoupon)
-  },
-  downloadCoupon: (policyId: number) =>
-    mutate<any>(`/api/coupons/${policyId}/download`, 'POST'),
-  getAdminCoupons: async (): Promise<AdminCoupon[]> => {
-    const result = await request<PageResponse<AdminCouponPolicyResponse> | AdminCouponPolicyResponse[] | null>('/api/admin/coupons?size=1000', null)
-    const content = Array.isArray(result) ? result : (result?.content ?? [])
-    return content.map(mapAdminCouponPolicyToCoupon)
-  },
-  getAdminCoupon: async (couponId: number): Promise<AdminCoupon | undefined> => {
-    const result = await request<AdminCouponPolicyResponse | undefined>(`/api/admin/coupons/${couponId}`, undefined)
-    return result ? mapAdminCouponPolicyToCoupon(result) : undefined
-  },
-  createAdminCoupon: async (coupon: AdminCoupon) => {
-    const result = await mutate<AdminCouponPolicyResponse>(
-      '/api/admin/coupons',
-      'POST',
-      mapAdminCouponToPolicyRequest(coupon),
-    )
-    return mapAdminCouponPolicyToCoupon(result)
-  },
-  updateAdminCoupon: async (couponId: number, coupon: AdminCoupon) => {
-    const { couponTarget, couponType, ...payload } = mapAdminCouponToPolicyRequest(coupon)
-    const result = await mutate<AdminCouponPolicyResponse>(
-      `/api/admin/coupons/${couponId}`,
-      'PUT',
-      payload,
-    )
-    return mapAdminCouponPolicyToCoupon(result)
-  },
-  terminateAdminCoupon: (couponId: number) =>
-    mutate<void>(`/api/admin/coupons/${couponId}/terminate`, 'PATCH'),
-  deleteAdminCoupon: (couponId: number) =>
-    mutate(`/api/admin/coupons/${couponId}`, 'DELETE'),
-
-  issueCouponToUsers: async (policyId: number, userIds: number[], requestKey: string) => {
-    return await mutate<CouponIssueRequestResponse>(
-      `/api/admin/coupons/${policyId}/issue/users`,
-      'POST',
-      { userIds, requestKey }
-    )
-  },
-
-  issueCouponToAll: async (policyId: number, requestKey: string) => {
-    return await mutate<CouponIssueRequestResponse>(
-      `/api/admin/coupons/${policyId}/issue/all`,
-      'POST',
-      { requestKey }
-    )
-  },
-
-  issueCouponToInactiveUsers: async (policyId: number, inactiveDays: number, maxInactiveDays: number | undefined, requestKey: string) => {
-    return await mutate<CouponIssueRequestResponse>(
-      `/api/admin/coupons/${policyId}/issue/inactive`,
-      'POST',
-      { inactiveDays, maxInactiveDays, requestKey }
-    )
-  },
-
-  getCouponIssueRequests: async (page = 0, size = 20) => {
-    const result = await request<PageResponse<CouponIssueRequestResponse> | null>(
-      `/api/admin/coupons/issue-requests?page=${page}&size=${size}`,
-      null
-    )
-    return result
-  },
-
   // User Profile
   getProfile: async (): Promise<UserProfile | null> => {
     try {
@@ -1468,7 +838,6 @@ export const api = {
         id: String(claims.id || claims.sub || ''),
         name: claims.nickname || claims.name || '',
         email: claims.email || '',
-        studyCount: 0,
         courseCount: 0,
         isSeller: claims.role === 'ROLE_SELLER' || claims.role === 'ROLE_ADMIN',
         isAdmin: claims.role === 'ROLE_ADMIN',
@@ -1482,9 +851,6 @@ export const api = {
     const courses = await request<EnrolledCourseResponse[]>('/api/enrollments/me/courses', [])
     return Array.isArray(courses) ? courses.map(mapEnrolledCourseResponseToCourse) : []
   },
-  getMyComments: () => request<MyComment[]>('/api/me/comments', []),
-  getMyAnswers: () => request<MyAnswer[]>('/api/me/answers', []),
-
   // Orders
   getOrders: async () => {
     const res = await request<any>('/api/orders', { content: [] })
@@ -1492,144 +858,6 @@ export const api = {
   },
 
   getOrder: async (id: string) => request<OrderDetailResponse | undefined>(`/api/orders/${id}`, undefined),
-
-  // 리포트 조회. 없으면 백엔드에서 즉시 생성한다.
-  getStudyReportRaw: (studyId: string | number, refresh = false) =>
-    request<StudyReportResponse | null>(
-      `/api/studies/${studyId}/report${refresh ? '?refresh=true' : ''}`,
-      null,
-    ),
-
-  // 학습 이벤트 재집계를 시도한다. 쿨다운 이내면 기존 리포트가 반환된다.
-  generateStudyReport: (studyId: string | number) =>
-    api.getStudyReportRaw(studyId, true),
-
-  // 조회 후 없으면 백엔드에서 생성까지 처리한다.
-  getOrGenerateStudyReport: async (studyId: string | number): Promise<StudyReportResponse | null> => {
-    return await api.getStudyReportRaw(studyId)
-  },
-
-  getStudyReport: async (_studyId: string): Promise<StudyReport> => {
-    let studyTitle = '기능 없음'
-    let resolvedStudyId = _studyId
-
-    try {
-      // 1. Fetch user's studies to resolve a valid study ID if it's 'study-1' or similar
-      const myStudies = await request<StudySummaryResponse[]>('/api/studies/me', [])
-      if (myStudies && myStudies.length > 0) {
-        if (_studyId === 'study-1' || isNaN(Number(_studyId))) {
-          resolvedStudyId = String(myStudies[0].studyId)
-          studyTitle = myStudies[0].title
-        } else {
-          const matched = myStudies.find(s => String(s.studyId) === _studyId)
-          if (matched) {
-            studyTitle = matched.title
-          } else {
-            const detail = await request<StudyDetailResponse | undefined>(`/api/studies/${_studyId}`, undefined)
-            if (detail) {
-              studyTitle = detail.title
-            }
-          }
-        }
-      } else {
-        studyTitle = '참여 중인 스터디 없음'
-      }
-    } catch (e) {
-      console.warn('Failed to fetch user studies or study detail:', e)
-    }
-
-    let userName = '사용자'
-    try {
-      // 2. Fetch User Profile to get user name
-      const profile = await api.getProfile()
-      if (profile && profile.name) {
-        userName = profile.name
-      }
-    } catch (e) {
-      console.warn('Failed to fetch user profile:', e)
-    }
-
-    // 3. 실제 학습 리포트(StudyReportResponse) 조회/생성 후 화면용 StudyReport 로 매핑
-    const raw = isNaN(Number(resolvedStudyId))
-      ? null
-      : await api.getOrGenerateStudyReport(resolvedStudyId)
-
-    if (!raw) {
-      return {
-        studyName: studyTitle,
-        userName,
-        period: '기능 없음',
-        totalStudyTime: '기능 없음',
-        commentCount: -1,
-        studyDays: -1,
-        progressData: [],
-        calendar: [],
-        topLectures: [],
-      }
-    }
-
-    return { studyName: studyTitle, userName, ...mapStudyReportToDisplay(raw) }
-  },
-
-  // 마이페이지: 내가 참여한 모든 스터디의 리포트 + 전체 합산 리포트를 한 번에 조회.
-  getMyStudyReports: async (): Promise<{
-    reports: MyStudyReport[]
-    aggregate: MyStudyReport | null
-  }> => {
-    const myStudies = await request<StudySummaryResponse[]>('/api/studies/me', [])
-
-    let userName = '사용자'
-    try {
-      const profile = await api.getProfile()
-      if (profile?.name) userName = profile.name
-    } catch {
-      // 프로필 조회 실패는 무시하고 기본값 사용
-    }
-
-    if (!myStudies || myStudies.length === 0) {
-      return { reports: [], aggregate: null }
-    }
-
-    const entries = await Promise.all(
-      myStudies.map(async (s) => ({
-        study: s,
-        raw: await api.getOrGenerateStudyReport(s.studyId).catch(() => null),
-      })),
-    )
-
-    const emptyDisplay: Omit<StudyReport, 'studyName' | 'userName'> = {
-      period: '기능 없음',
-      totalStudyTime: '기능 없음',
-      commentCount: -1,
-      studyDays: -1,
-      progressData: [],
-      calendar: [],
-      topLectures: [],
-    }
-
-    const reports: MyStudyReport[] = entries.map(({ study, raw }) => ({
-      studyId: String(study.studyId),
-      studyName: study.title,
-      userName,
-      ...(raw ? mapStudyReportToDisplay(raw) : emptyDisplay),
-    }))
-
-    const raws = entries
-      .map((e) => e.raw)
-      .filter((r): r is StudyReportResponse => r != null)
-
-    const aggregate: MyStudyReport | null =
-      raws.length > 1
-        ? {
-          studyId: 'all',
-          studyName: `전체 ${reports.length}개 스터디`,
-          userName,
-          ...mapStudyReportToDisplay(buildAggregateReportRaw(raws)),
-        }
-        : null
-
-    return { reports, aggregate }
-  },
 
   // Admin Course APIs
   approveCourseByAdmin: async (courseId: number | string) => {

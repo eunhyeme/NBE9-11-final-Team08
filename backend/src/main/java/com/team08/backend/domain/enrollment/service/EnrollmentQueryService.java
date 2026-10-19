@@ -6,11 +6,8 @@ import com.team08.backend.domain.enrollment.dto.EnrolledCourseResponse;
 import com.team08.backend.domain.enrollment.entity.Enrollment;
 import com.team08.backend.domain.enrollment.entity.EnrollmentStatus;
 import com.team08.backend.domain.enrollment.repository.EnrollmentRepository;
-import com.team08.backend.domain.study.entity.Study;
-import com.team08.backend.domain.study.entity.StudyStatus;
-import com.team08.backend.domain.study.repository.StudyRepository;
-import com.team08.backend.domain.studyreport.entity.StudyReport;
-import com.team08.backend.domain.studyreport.repository.StudyReportRepository;
+import com.team08.backend.domain.lecture.repository.LectureRepository;
+import com.team08.backend.domain.lectureprogress.repository.LectureProgressRepository;
 import com.team08.backend.domain.user.entity.User;
 import com.team08.backend.domain.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -28,8 +25,8 @@ public class EnrollmentQueryService {
 
     private final EnrollmentRepository enrollmentRepository;
     private final CourseRepository courseRepository;
-    private final StudyRepository studyRepository;
-    private final StudyReportRepository studyReportRepository;
+    private final LectureRepository lectureRepository;
+    private final LectureProgressRepository lectureProgressRepository;
     private final UserRepository userRepository;
 
     @Transactional(readOnly = true)
@@ -56,19 +53,6 @@ public class EnrollmentQueryService {
         Map<Long, Course> courseById = courses.stream()
                 .collect(Collectors.toMap(Course::getId, Function.identity()));
 
-        Map<Long, Study> studyByCourseId = studyRepository
-                .findByCourseIdInAndStatusIn(courseIds, List.of(StudyStatus.ACTIVE, StudyStatus.READONLY))
-                .stream()
-                .collect(Collectors.toMap(study -> study.getCourse().getId(), Function.identity()));
-
-        List<Long> studyIds = studyByCourseId.values().stream()
-                .map(Study::getId)
-                .toList();
-        Map<Long, StudyReport> reportByStudyId = studyIds.isEmpty()
-                ? Map.of()
-                : studyReportRepository.findByUserIdAndStudyIdIn(userId, studyIds).stream()
-                        .collect(Collectors.toMap(StudyReport::getStudyId, Function.identity()));
-
         List<Long> instructorIds = courseById.values().stream()
                 .map(Course::getInstructorId)
                 .distinct()
@@ -84,8 +68,7 @@ public class EnrollmentQueryService {
                 .map(enrollment -> toResponse(
                         enrollment,
                         courseById.get(enrollment.getCourseId()),
-                        studyByCourseId.get(enrollment.getCourseId()),
-                        reportByStudyId,
+                        userId,
                         nicknameByUserId
                 ))
                 .filter(response -> response != null)
@@ -95,27 +78,23 @@ public class EnrollmentQueryService {
     private EnrolledCourseResponse toResponse(
             Enrollment enrollment,
             Course course,
-            Study study,
-            Map<Long, StudyReport> reportByStudyId,
+            Long userId,
             Map<Long, String> nicknameByUserId
     ) {
         if (course == null) {
             return null;
         }
 
-        Long studyId = study == null ? null : study.getId();
-        StudyReport report = studyId == null ? null : reportByStudyId.get(studyId);
-        int completedLectures = report == null || report.getCompletedLectures() == null
-                ? 0 : report.getCompletedLectures();
-        int totalLectures = report == null || report.getTotalLectures() == null
-                ? 0 : report.getTotalLectures();
+        List<Long> lectureIds = lectureRepository.findIdsByCourseId(course.getId());
+        int totalLectures = lectureIds.size();
+        int completedLectures = totalLectures == 0
+                ? 0 : (int) lectureProgressRepository.countByUserIdAndLectureIdInAndCompleted(userId, lectureIds, true);
         int progressRate = totalLectures == 0
                 ? 0 : (int) Math.round((double) completedLectures * 100 / totalLectures);
 
         return new EnrolledCourseResponse(
                 enrollment.getId(),
                 course.getId(),
-                studyId,
                 course.getTitle(),
                 nicknameByUserId.getOrDefault(course.getInstructorId(), "(알 수 없음)"),
                 course.getThumbnail(),

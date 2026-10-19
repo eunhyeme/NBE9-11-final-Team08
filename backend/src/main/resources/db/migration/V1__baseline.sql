@@ -1,3 +1,6 @@
+-- 핵심 기능(판매자 강좌 등록 → 구매 → 수강 → 대시보드) 기준 baseline 스키마.
+-- 기존 V1~V19 를 하나로 합치고, 삭제된 기능(쿠폰·스터디·피드·출석·Q&A·회고·AI 피드백·Spring Batch)의 테이블은 제외했다.
+
 CREATE TABLE users (
     id BIGINT NOT NULL AUTO_INCREMENT,
     email VARCHAR(255) NOT NULL,
@@ -84,6 +87,7 @@ CREATE TABLE chapters (
 CREATE TABLE lectures (
     id BIGINT NOT NULL AUTO_INCREMENT,
     m3u8path VARCHAR(255) NOT NULL,
+    video_uuid VARCHAR(36),
     title VARCHAR(255) NOT NULL,
     summary VARCHAR(255),
     duration_seconds INT NOT NULL,
@@ -95,6 +99,7 @@ CREATE TABLE lectures (
     updated_at DATETIME(6) NOT NULL,
     PRIMARY KEY (id),
     KEY idx_lecture_chapter_id (chapter_id),
+    KEY idx_lectures_video_uuid (video_uuid),
     CONSTRAINT fk_lecture_chapter FOREIGN KEY (chapter_id) REFERENCES chapters (id)
 ) ENGINE=InnoDB;
 
@@ -105,13 +110,30 @@ CREATE TABLE lecture_modification_requests (
     description TEXT NOT NULL,
     beforem3u8path VARCHAR(255) NOT NULL,
     afterm3u8path VARCHAR(255) NOT NULL,
+    after_video_uuid VARCHAR(36),
     status ENUM ('APPROVED', 'PENDING', 'REJECTED') NOT NULL,
     rejected_reason TEXT,
     managed_by BIGINT,
     created_at DATETIME(6) NOT NULL,
     updated_at DATETIME(6) NOT NULL,
     PRIMARY KEY (id),
+    KEY idx_lecture_mod_requests_after_video_uuid (after_video_uuid),
     CONSTRAINT fk_lecture_modification_lecture FOREIGN KEY (lecture_id) REFERENCES lectures (id)
+) ENGINE=InnoDB;
+
+CREATE TABLE s3_cleanup_dlq (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    lecture_id BIGINT NOT NULL,
+    target_dir_name VARCHAR(255) NOT NULL,
+    status ENUM ('DEAD', 'PENDING') NOT NULL DEFAULT 'PENDING',
+    retry_count INT NOT NULL DEFAULT 0,
+    last_error TEXT,
+    failed_at DATETIME(6) NOT NULL,
+    next_retry_at DATETIME(6),
+    created_at DATETIME(6) NOT NULL,
+    updated_at DATETIME(6) NOT NULL,
+    PRIMARY KEY (id),
+    KEY idx_s3_cleanup_dlq_status_retry (status, next_retry_at)
 ) ENGINE=InnoDB;
 
 CREATE TABLE carts (
@@ -128,57 +150,6 @@ CREATE TABLE cart_items (
     PRIMARY KEY (id),
     UNIQUE KEY uk_cart_item_cart_course (cart_id, course_id),
     CONSTRAINT fk_cart_item_cart FOREIGN KEY (cart_id) REFERENCES carts (id)
-) ENGINE=InnoDB;
-
-CREATE TABLE coupon_policies (
-    id BIGINT NOT NULL AUTO_INCREMENT,
-    name VARCHAR(100) NOT NULL,
-    coupon_target ENUM ('ALL', 'CATEGORY', 'COURSE') NOT NULL,
-    coupon_type ENUM ('AUTO', 'FCFS', 'NORMAL') NOT NULL,
-    total_quantity INT,
-    usage_type ENUM ('MULTI_USE', 'SINGLE_USE') NOT NULL,
-    is_stackable BIT NOT NULL,
-    discount_type ENUM ('AMOUNT', 'PERCENT') NOT NULL,
-    discount_value INT NOT NULL,
-    max_discount_amount INT,
-    min_order_amount INT,
-    valid_days INT,
-    issue_start_date DATETIME(6),
-    issue_end_date DATETIME(6),
-    deleted_at DATETIME(6),
-    created_at DATETIME(6) NOT NULL,
-    updated_at DATETIME(6) NOT NULL,
-    PRIMARY KEY (id)
-) ENGINE=InnoDB;
-
-CREATE TABLE coupon_policy_categories (
-    id BIGINT NOT NULL AUTO_INCREMENT,
-    coupon_policy_id BIGINT NOT NULL,
-    category_id BIGINT NOT NULL,
-    PRIMARY KEY (id),
-    UNIQUE KEY uk_coupon_policy_category (coupon_policy_id, category_id),
-    CONSTRAINT fk_coupon_policy_category_policy FOREIGN KEY (coupon_policy_id) REFERENCES coupon_policies (id)
-) ENGINE=InnoDB;
-
-CREATE TABLE coupon_policy_courses (
-    id BIGINT NOT NULL AUTO_INCREMENT,
-    coupon_policy_id BIGINT NOT NULL,
-    course_id BIGINT NOT NULL,
-    PRIMARY KEY (id),
-    UNIQUE KEY uk_coupon_policy_course (coupon_policy_id, course_id),
-    CONSTRAINT fk_coupon_policy_course_policy FOREIGN KEY (coupon_policy_id) REFERENCES coupon_policies (id)
-) ENGINE=InnoDB;
-
-CREATE TABLE issued_coupons (
-    id BIGINT NOT NULL AUTO_INCREMENT,
-    policy_id BIGINT NOT NULL,
-    user_id BIGINT NOT NULL,
-    status ENUM ('EXPIRED', 'ISSUED', 'USED') NOT NULL,
-    issued_at DATETIME(6) NOT NULL,
-    expired_at DATETIME(6) NOT NULL,
-    used_at DATETIME(6),
-    PRIMARY KEY (id),
-    UNIQUE KEY uk_issued_coupon_user_policy (user_id, policy_id)
 ) ENGINE=InnoDB;
 
 CREATE TABLE orders (
@@ -205,6 +176,7 @@ CREATE TABLE order_items (
     order_id BIGINT NOT NULL,
     course_id BIGINT NOT NULL,
     course_title VARCHAR(255) NOT NULL,
+    course_thumbnail VARCHAR(255),
     price INT NOT NULL,
     discount_price INT NOT NULL,
     final_price INT NOT NULL,
@@ -214,21 +186,17 @@ CREATE TABLE order_items (
     CONSTRAINT fk_order_item_order FOREIGN KEY (order_id) REFERENCES orders (id)
 ) ENGINE=InnoDB;
 
-CREATE TABLE order_coupon_usages (
-    id BIGINT NOT NULL AUTO_INCREMENT,
-    order_id BIGINT NOT NULL,
-    issued_coupon_id BIGINT NOT NULL,
-    discount_amount INT NOT NULL,
-    PRIMARY KEY (id)
-) ENGINE=InnoDB;
-
 CREATE TABLE payments (
     id BIGINT NOT NULL AUTO_INCREMENT,
     order_id BIGINT NOT NULL,
+    provider ENUM ('MOCK', 'TOSS', 'NICEPAY', 'KCP') NOT NULL DEFAULT 'MOCK',
     payment_key VARCHAR(255),
     method VARCHAR(255),
     amount INT NOT NULL,
-    status ENUM ('CANCELED', 'FAILED', 'READY', 'REFUNDED', 'SUCCESS') NOT NULL,
+    status ENUM ('READY', 'PROCESSING', 'SUCCESS', 'DECLINED', 'UNKNOWN', 'CANCELED', 'REFUNDED') NOT NULL,
+    idempotency_key VARCHAR(255),
+    failure_code VARCHAR(255),
+    failure_message VARCHAR(255),
     paid_at DATETIME(6),
     failed_reason VARCHAR(255),
     canceled_at DATETIME(6),
@@ -238,6 +206,47 @@ CREATE TABLE payments (
     PRIMARY KEY (id),
     UNIQUE KEY uk_payment_order (order_id),
     CONSTRAINT fk_payment_order FOREIGN KEY (order_id) REFERENCES orders (id)
+) ENGINE=InnoDB;
+
+CREATE TABLE payment_attempts (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    payment_id BIGINT NOT NULL,
+    provider ENUM ('MOCK', 'TOSS', 'NICEPAY', 'KCP') NOT NULL,
+    status ENUM ('REQUESTED', 'SUCCESS', 'DECLINED', 'PROVIDER_ERROR', 'TIMEOUT', 'UNKNOWN') NOT NULL,
+    amount INT NOT NULL,
+    payment_key VARCHAR(255),
+    idempotency_key VARCHAR(255),
+    failure_code VARCHAR(255),
+    failure_message VARCHAR(255),
+    requested_at DATETIME(6) NOT NULL,
+    completed_at DATETIME(6),
+    created_at DATETIME(6) NOT NULL,
+    updated_at DATETIME(6),
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_payment_attempt_payment_id_idempotency_key (payment_id, idempotency_key),
+    KEY idx_payment_attempt_payment_created_at (payment_id, created_at),
+    KEY idx_payment_attempt_provider_status (provider, status),
+    CONSTRAINT fk_payment_attempt_payment FOREIGN KEY (payment_id) REFERENCES payments (id)
+) ENGINE=InnoDB;
+
+CREATE TABLE payment_success_outbox_events (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    payment_id BIGINT NOT NULL,
+    order_id BIGINT NOT NULL,
+    user_id BIGINT NOT NULL,
+    event_type VARCHAR(255) NOT NULL,
+    status ENUM ('PENDING', 'PROCESSING', 'SUCCESS', 'FAILED', 'DEAD') NOT NULL,
+    last_error LONGTEXT,
+    retry_count INT NOT NULL DEFAULT 0,
+    next_retry_at DATETIME(6),
+    processed_at DATETIME(6),
+    created_at DATETIME(6) NOT NULL,
+    updated_at DATETIME(6) NOT NULL,
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_payment_success_outbox_payment (payment_id),
+    KEY idx_payment_success_outbox_status_id (status, id),
+    CONSTRAINT fk_payment_success_outbox_payment FOREIGN KEY (payment_id) REFERENCES payments (id),
+    CONSTRAINT fk_payment_success_outbox_order FOREIGN KEY (order_id) REFERENCES orders (id)
 ) ENGINE=InnoDB;
 
 CREATE TABLE enrollments (
@@ -252,7 +261,6 @@ CREATE TABLE enrollments (
     created_at DATETIME(6) NOT NULL,
     updated_at DATETIME(6),
     PRIMARY KEY (id),
-    UNIQUE KEY uk_enrollment_user_course (user_id, course_id),
     KEY idx_enrollment_user_status_course (user_id, status, course_id),
     KEY idx_enrollment_order_status (order_id, status),
     CONSTRAINT fk_enrollment_order FOREIGN KEY (order_id) REFERENCES orders (id)
@@ -267,6 +275,7 @@ CREATE TABLE lecture_progresses (
     progress_rate INT NOT NULL,
     completed BIT NOT NULL,
     completed_at DATETIME(6),
+    version BIGINT NOT NULL DEFAULT 0,
     created_at DATETIME(6) NOT NULL,
     updated_at DATETIME(6) NOT NULL,
     PRIMARY KEY (id),
@@ -284,168 +293,16 @@ CREATE TABLE last_watched_lectures (
     UNIQUE KEY uk_last_watched_user_course (user_id, course_id)
 ) ENGINE=InnoDB;
 
-CREATE TABLE lecture_reflections (
-    id BIGINT NOT NULL AUTO_INCREMENT,
-    lecture_id BIGINT NOT NULL,
-    user_id BIGINT NOT NULL,
-    content TEXT NOT NULL,
-    created_at DATETIME(6) NOT NULL,
-    updated_at DATETIME(6) NOT NULL,
-    PRIMARY KEY (id),
-    UNIQUE KEY uk_lecture_reflection_user_lecture (user_id, lecture_id)
-) ENGINE=InnoDB;
-
-CREATE TABLE qna_questions (
-    id BIGINT NOT NULL AUTO_INCREMENT,
-    lecture_id BIGINT NOT NULL,
-    user_id BIGINT NOT NULL,
-    title VARCHAR(255) NOT NULL,
-    content TEXT NOT NULL,
-    deleted_at DATETIME(6),
-    created_at DATETIME(6) NOT NULL,
-    updated_at DATETIME(6) NOT NULL,
-    PRIMARY KEY (id)
-) ENGINE=InnoDB;
-
-CREATE TABLE qna_answers (
-    id BIGINT NOT NULL AUTO_INCREMENT,
-    question_id BIGINT NOT NULL,
-    instructor_id BIGINT NOT NULL,
-    content TEXT NOT NULL,
-    created_at DATETIME(6) NOT NULL,
-    updated_at DATETIME(6) NOT NULL,
-    PRIMARY KEY (id),
-    UNIQUE KEY uk_qna_answer_question (question_id)
-) ENGINE=InnoDB;
-
 CREATE TABLE learning_events (
     id BIGINT NOT NULL AUTO_INCREMENT,
     user_id BIGINT NOT NULL,
     course_id BIGINT,
     chapter_id BIGINT,
     lecture_id BIGINT,
-    event_type ENUM ('LECTURE_COMPLETE', 'LECTURE_ENTER', 'LECTURE_EXIT', 'POSITION_SAVE', 'VIDEO_END', 'VIDEO_START') NOT NULL,
+    event_type ENUM ('LECTURE_COMPLETE', 'LECTURE_ENTER', 'LECTURE_EXIT', 'VIDEO_PAUSE') NOT NULL,
     position_seconds INT,
     event_time DATETIME(6) NOT NULL,
     unique_event_key VARCHAR(255),
     PRIMARY KEY (id),
     UNIQUE KEY uk_learning_event_key (unique_event_key)
-) ENGINE=InnoDB;
-
-CREATE TABLE studies (
-    id BIGINT NOT NULL AUTO_INCREMENT,
-    course_id BIGINT NOT NULL,
-    user_id BIGINT NOT NULL,
-    title VARCHAR(255) NOT NULL,
-    description TEXT,
-    status ENUM ('ACTIVE', 'DRAFT', 'INACTIVE', 'READONLY') NOT NULL,
-    created_at DATETIME(6) NOT NULL,
-    updated_at DATETIME(6) NOT NULL,
-    PRIMARY KEY (id),
-    UNIQUE KEY uk_study_course (course_id),
-    CONSTRAINT fk_study_course FOREIGN KEY (course_id) REFERENCES courses (id),
-    CONSTRAINT fk_study_user FOREIGN KEY (user_id) REFERENCES users (id)
-) ENGINE=InnoDB;
-
-CREATE TABLE study_members (
-    id BIGINT NOT NULL AUTO_INCREMENT,
-    study_id BIGINT NOT NULL,
-    user_id BIGINT NOT NULL,
-    role ENUM ('MEMBER', 'OWNER') NOT NULL,
-    status ENUM ('ACTIVE', 'KICKED', 'LEFT') NOT NULL,
-    joined_at DATETIME(6) NOT NULL,
-    left_at DATETIME(6),
-    kicked_at DATETIME(6),
-    PRIMARY KEY (id),
-    UNIQUE KEY uk_study_member_study_user (study_id, user_id),
-    CONSTRAINT fk_study_member_study FOREIGN KEY (study_id) REFERENCES studies (id),
-    CONSTRAINT fk_study_member_user FOREIGN KEY (user_id) REFERENCES users (id)
-) ENGINE=InnoDB;
-
-CREATE TABLE study_activities (
-    id BIGINT NOT NULL AUTO_INCREMENT,
-    study_id BIGINT NOT NULL,
-    author_id BIGINT NOT NULL,
-    content TEXT NOT NULL,
-    deleted_at DATETIME(6),
-    created_at DATETIME(6) NOT NULL,
-    updated_at DATETIME(6) NOT NULL,
-    PRIMARY KEY (id)
-) ENGINE=InnoDB;
-
-CREATE TABLE feed_items (
-    id BIGINT NOT NULL AUTO_INCREMENT,
-    study_id BIGINT NOT NULL,
-    actor_id BIGINT NOT NULL,
-    type ENUM ('STUDY_ACTIVITY') NOT NULL,
-    source_id BIGINT NOT NULL,
-    content VARCHAR(255) NOT NULL,
-    occurred_at DATETIME(6) NOT NULL,
-    PRIMARY KEY (id),
-    UNIQUE KEY uk_feed_item_type_source (type, source_id),
-    KEY idx_study_feed (study_id, occurred_at, id)
-) ENGINE=InnoDB;
-
-CREATE TABLE feed_item_outbox_events (
-    id BIGINT NOT NULL AUTO_INCREMENT,
-    study_id BIGINT NOT NULL,
-    source_id BIGINT NOT NULL,
-    feed_item_id BIGINT,
-    event_type VARCHAR(255) NOT NULL,
-    payload LONGTEXT NOT NULL,
-    status ENUM ('DEAD', 'FAILED', 'PENDING', 'PUBLISHED') NOT NULL,
-    retry_count INT NOT NULL,
-    last_error LONGTEXT,
-    published_at DATETIME(6),
-    next_retry_at DATETIME(6),
-    created_at DATETIME(6) NOT NULL,
-    updated_at DATETIME(6) NOT NULL,
-    PRIMARY KEY (id),
-    UNIQUE KEY uk_feed_outbox_event_source (event_type, source_id),
-    UNIQUE KEY uk_feed_outbox_feed_item (feed_item_id),
-    KEY idx_feed_outbox_status_id (status, id),
-    KEY idx_feed_outbox_study_id (study_id, id)
-) ENGINE=InnoDB;
-
-CREATE TABLE ai_feedbacks (
-    id BIGINT NOT NULL AUTO_INCREMENT,
-    user_id BIGINT NOT NULL,
-    study_id BIGINT NOT NULL,
-    study_activity_id BIGINT NOT NULL,
-    status ENUM ('COMPLETED', 'FAILED', 'PENDING', 'PROCESSING', 'STALE') NOT NULL,
-    feedback LONGTEXT,
-    activity_content_snapshot LONGTEXT NOT NULL,
-    model_name VARCHAR(255) NOT NULL,
-    prompt_version VARCHAR(255) NOT NULL,
-    created_at DATETIME(6) NOT NULL,
-    updated_at DATETIME(6) NOT NULL,
-    PRIMARY KEY (id),
-    UNIQUE KEY uk_ai_feedback_study_activity (study_activity_id)
-) ENGINE=InnoDB;
-
-CREATE TABLE attendances (
-    id BIGINT NOT NULL AUTO_INCREMENT,
-    user_id BIGINT NOT NULL,
-    attendance_date DATE NOT NULL,
-    consecutive_days INT NOT NULL,
-    monthly_total_days INT NOT NULL,
-    created_at DATETIME(6) NOT NULL,
-    PRIMARY KEY (id),
-    UNIQUE KEY uk_attendance_user_date (user_id, attendance_date)
-) ENGINE=InnoDB;
-
-CREATE TABLE study_reports (
-    id BIGINT NOT NULL AUTO_INCREMENT,
-    user_id BIGINT NOT NULL,
-    study_id BIGINT NOT NULL,
-    total_watch_time INT,
-    total_qna_count INT,
-    progress_rate DECIMAL(5, 2),
-    study_days INT,
-    top_lectures TEXT,
-    daily_progress TEXT,
-    daily_activity_map TEXT,
-    created_at DATETIME(6) NOT NULL,
-    updated_at DATETIME(6) NOT NULL,
-    PRIMARY KEY (id)
 ) ENGINE=InnoDB;

@@ -192,8 +192,6 @@ export interface ConfirmTossPaymentRequest {
   paymentKey: string
   method: string
   amount: number
-  itemCouponIds?: Record<number, number> | null
-  stackableCouponId?: number | null
   idempotencyKey?: string | null
   authResultCode?: string | null
   authResultMsg?: string | null
@@ -209,8 +207,6 @@ export interface ConfirmTossPaymentRequest {
 
 export interface NicepayPreparePaymentRequest {
   payMethod: 'CARD'
-  itemCouponIds?: Record<number, number> | null
-  stackableCouponId?: number | null
 }
 
 export interface NicepayPreparePaymentResponse {
@@ -238,161 +234,6 @@ export interface PaymentResponse {
   failedReason?: string | null
   canceledAt?: string | null
   refundedAt?: string | null
-}
-
-export interface Coupon {
-  id: string
-  policyId?: string
-  name: string
-  amount: string
-  condition: string
-  category: '진행 중인 이벤트' | '종료된 이벤트'
-  type: 'discount' | 'attendance' | 'firstcome'
-  status?: 'SCHEDULED' | 'ACTIVE' | 'ENDED'
-  originalStatus?: string
-  startDate?: string | null
-  endDate?: string | null
-  validDays?: number | null
-  couponTarget?: string
-  usageType?: string
-  isStackable?: boolean
-  maxDiscountAmount?: number | null
-  minOrderAmount?: number | null
-  categoryIds?: number[]
-  courseIds?: number[]
-  totalQuantity?: number | null
-}
-
-export type CouponPolicyType = 'NORMAL' | 'FCFS' | 'AUTO' | 'ADMIN'
-export type AutoIssueType = 'SIGNUP' | 'ATTENDANCE_STREAK' | 'MONTHLY_ATTENDANCE'
-export type CouponApplyTarget = 'ALL' | 'CATEGORY' | 'COURSE'
-export type CouponUseType = 'SINGLE' | 'MULTI'
-export type CouponDiscountType = 'AMOUNT' | 'RATE'
-export type CouponStatus = 'SCHEDULED' | 'ACTIVE' | 'ENDED'
-
-export interface AdminCoupon {
-  id: number
-  name: string
-  totalQuantity: number | null
-  type: CouponPolicyType
-  autoIssueType?: AutoIssueType | null
-  target: CouponApplyTarget
-  useType: CouponUseType
-  stackable: boolean
-  discountType: CouponDiscountType
-  discountValue: number
-  maxDiscount: number | null
-  minOrderAmount: number | null
-  validDays: number | null
-  startAt: string
-  endAt: string
-  status: CouponStatus
-  issuedCount: number
-  targetCategories?: string[]
-  targetCourses?: string[]
-}
-
-export interface AdminCouponPolicyResponse {
-  id: number
-  name: string
-  couponTarget: CouponApplyTarget
-  couponType: CouponPolicyType
-  autoIssueType?: AutoIssueType | null
-  totalQuantity: number | null
-  usageType: CouponUseType | 'SINGLE_USE' | 'MULTI_USE'
-  isStackable: boolean
-  discountType: CouponDiscountType | 'PERCENT'
-  discountValue: number
-  maxDiscountAmount: number | null
-  minOrderAmount: number | null
-  validDays: number | null
-  issueStartDate: string | null
-  issueEndDate: string | null
-  categoryIds: number[]
-  courseIds: number[]
-}
-
-export interface AdminCouponPolicyRequest {
-  name: string
-  couponTarget?: CouponApplyTarget
-  couponType?: CouponPolicyType
-  autoIssueType?: AutoIssueType | null
-  totalQuantity: number | null
-  usageType: CouponUseType
-  isStackable: boolean
-  discountType: CouponDiscountType
-  discountValue: number
-  maxDiscountAmount: number | null
-  minOrderAmount: number | null
-  validDays: number | null
-  issueStartDate: string | null
-  issueEndDate: string | null
-  categoryIds: number[]
-  courseIds: number[]
-}
-
-export interface CouponListResponse {
-  issuedCouponId: number
-  policyId: number
-  couponName: string
-  discountType: string
-  discountValue: number
-  expiredAt: string
-  status: string
-  usageType: string
-  isStackable: boolean
-  maxDiscountAmount: number | null
-  minOrderAmount: number | null
-  couponTarget: 'ALL' | 'CATEGORY' | 'COURSE'
-  categoryIds: number[]
-  courseIds: number[]
-}
-
-export interface QnaPost {
-  id: string
-  author: string
-  role: 'student' | 'instructor'
-  timestamp: string
-  content: string
-  createdAt: string
-  answers?: QnaPost[]
-}
-
-// 백엔드 QnaAnswerSummary(record(id, content, createdAt))와 동일한 형태
-export interface QnaAnswerSummary {
-  id: number
-  content: string
-  createdAt: string
-}
-
-// 백엔드 QnaQuestionResponse(record)와 동일한 형태. 답변(answer)은 단일이며 없으면 null.
-export interface QnaQuestionResponse {
-  id: number
-  lectureId: number
-  userId: number
-  nickname: string
-  title: string
-  content: string
-  createdAt: string
-  updatedAt: string
-  answer: QnaAnswerSummary | null
-}
-
-// 백엔드 QnaAnswerResponse(record)와 동일한 형태
-export interface QnaAnswerResponse {
-  id: number
-  questionId: number
-  instructorId: number
-  content: string
-  createdAt: string
-  updatedAt: string
-}
-
-export interface LectureReflectionResponse {
-  id: number | null
-  userId: number | null
-  lectureId: number | null
-  content: string | null
 }
 
 // ── 강의 입장/진행 ──────────────────────────────────────────────
@@ -435,15 +276,6 @@ export type LearningEventType =
   | 'LECTURE_EXIT'
   | 'LECTURE_COMPLETE'
 
-export interface ActivityFeedItem {
-  id: string
-  author: string
-  date: string
-  content: string
-  hasAiFeedback?: boolean
-  aiFeedback?: string
-}
-
 export interface OrderItem {
   courseId: string
   title: string
@@ -471,7 +303,6 @@ export interface UserProfile {
   name: string
   email: string
   avatarUrl?: string
-  studyCount: number
   courseCount: number
   isSeller: boolean
   isAdmin: boolean
@@ -493,7 +324,6 @@ export interface EnrolledCourse {
 export interface EnrolledCourseResponse {
   enrollmentId: number
   courseId: number
-  studyId?: number | null
   title: string
   instructorNickname: string
   thumbnailUrl: string
@@ -501,30 +331,6 @@ export interface EnrolledCourseResponse {
   completedLectures: number
   totalLectures: number
   enrolledAt: string
-}
-
-export interface MyComment {
-  id: number
-  lectureId: number
-  courseTitle: string
-  lectureTitle: string
-  title: string
-  content: string
-  createdAt: string
-  answered: boolean
-}
-
-// 백엔드 MyAnswerResponse(record)와 동일한 형태 — 강사/판매자가 작성한 답변
-export interface MyAnswer {
-  answerId: number
-  questionId: number
-  lectureId: number
-  courseTitle: string
-  lectureTitle: string
-  questionTitle: string
-  questionContent: string
-  answerContent: string
-  createdAt: string
 }
 
 export interface SignupRequest {
@@ -567,145 +373,7 @@ export interface LoginRequest {
   password: string
 }
 
-export type StudyStatus = 'DRAFT' | 'ACTIVE' | 'READONLY' | 'INACTIVE'
-export type StudyRole = 'owner' | 'member' | 'viewer' | 'OWNER' | 'MEMBER'
-
-export interface StudyMember {
-  id: string
-  name: string
-  avatarUrl?: string | null
-  progress: number
-  role: StudyRole
-  joinedAt: string
-}
-
-export interface StudyMemberResponse {
-  userId: number
-  nickname: string
-  profileImage: string | null
-  role: 'OWNER' | 'MEMBER'
-  joinedAt: string
-}
-
-export interface StudyApplicant {
-  id: string
-  name: string
-  appliedAt: string
-}
-
-export interface StudyAnnouncement {
-  id: string
-  title: string
-  content: string
-  createdAt: string
-}
-
-export interface StudyComment {
-  id: string
-  author: string
-  content: string
-  createdAt: string
-}
-
-export interface BoardPost {
-  id: string
-  title: string
-  author: string
-  content: string
-  createdAt: string
-  comments: StudyComment[]
-  aiFeedback?: string
-}
-
-export interface Study {
-  id: string
-  courseId: string
-  name: string
-  intro: string
-  status: StudyStatus
-  ownerName: string
-  myRole: StudyRole
-  progress: number
-  members: StudyMember[]
-  applicants: StudyApplicant[]
-  announcements: StudyAnnouncement[]
-  posts: BoardPost[]
-}
-
-export interface StudySummaryResponse {
-  studyId: number
-  title: string
-  description: string
-  ownerNickname: string
-  progressRate: number
-  completedLectures: number
-  totalLectures: number
-}
-
-export interface StudyDetailResponse {
-  studyId: number
-  courseId: number
-  title: string
-  description: string
-  status: string
-  ownerNickname: string
-  myRole: string | null
-}
-
-export interface StudyIdResponse {
-  studyId: number
-}
-
-export interface StudyActivityResponse {
-  activityId: number
-  studyId: number
-  authorId: number
-  authorNickname: string
-  content: string
-  createdAt: string
-}
-
-export type FeedItemType = 'STUDY_ACTIVITY' | 'LECTURE_ENTER' | 'LECTURE_COMPLETE'
 export type BackendDateTime = string | number[]
-
-export interface FeedItemResponse {
-  id: number
-  studyId: number
-  actorId: number
-  actorNickname: string
-  type: FeedItemType
-  sourceId: number
-  content: string
-  occurredAt: BackendDateTime
-}
-
-export interface FeedCursor {
-  occurredAt: BackendDateTime
-  id: number
-}
-
-export interface FeedCursorResponse {
-  items: FeedItemResponse[]
-  nextCursor: FeedCursor | null
-  hasNext: boolean
-}
-
-export interface StructuredFeedback {
-  summary: string
-  strengths: string
-  improvements: string
-  additionalStudy: string
-}
-
-export interface AiFeedbackResponse {
-  id: number
-  studyId: number
-  activityId: number
-  status: 'REQUESTED' | 'GENERATING' | 'COMPLETED' | 'FAILED'
-  feedback: StructuredFeedback | null
-  createdAt: string
-  updatedAt: string
-}
 
 export interface LearningEventResponse {
   id: number
@@ -715,65 +383,6 @@ export interface LearningEventResponse {
   chapterId: number | null
   lectureId: number | null
   createdAt: string
-}
-
-export interface AttendanceResponse {
-  consecutiveDays: number
-  monthlyTotalDays: number
-}
-
-export interface AttendanceStatusResponse {
-  checkedToday: boolean
-  consecutiveDays: number
-  monthlyTotalDays: number
-  checkedDays: number[]
-}
-
-export interface StudyReport {
-  studyName: string
-  userName: string
-  period: string
-  totalStudyTime: string
-  commentCount: number
-  studyDays: number
-  progressData: { day: string; progress: number; minutes: number }[]
-  calendar: { date: string; active: boolean; level?: number }[]
-  topLectures: string[]
-  // 리포트가 마지막으로 집계된 시각(백엔드 updatedAt). 갱신 버튼 안내용.
-  updatedAt?: string
-  // 쿨다운으로 다음 갱신이 가능한 시각. null 이면 즉시 갱신 가능.
-  nextRegenerableAt?: string | null
-}
-
-// 마이페이지 리포트 화면용: 화면 리포트 + 스터디 식별자(개별 갱신/구분용)
-export interface MyStudyReport extends StudyReport {
-  studyId: string
-}
-
-// 백엔드 StudyReportResponse(record)와 동일한 형태
-export interface StudyReportTopLectureEntry {
-  lectureId: number
-  title: string
-  watchTimeSeconds: number
-}
-
-export interface StudyReportDailyProgressEntry {
-  date: string
-  progressRate: number
-}
-
-export interface StudyReportResponse {
-  studyId: number
-  totalWatchTime: number
-  totalQnaCount: number
-  progressRate: number
-  studyDays: number
-  topLectures: StudyReportTopLectureEntry[]
-  dailyProgress: StudyReportDailyProgressEntry[]
-  dailyActivityMap: Record<string, number>
-  updatedAt: string
-  status: 'LOADED' | 'REGENERATED' | 'COOLDOWN'
-  nextRegenerableAt: string | null
 }
 
 // ── 관리자 대시보드 ────────────────────────────────────────────────────
@@ -933,32 +542,3 @@ export interface AuditResponse {
   }[]
 }
 
-export interface CouponIssueUsersRequest {
-  requestKey: string
-  userIds: number[]
-}
-
-export interface CouponIssueAllUsersRequest {
-  requestKey: string
-}
-
-export type CouponIssueRequestType = 'TARGETED' | 'ALL_USERS'
-export type CouponIssueRequestStatus = 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'FAILED'
-
-export interface CouponIssueRequestResponse {
-  id: number
-  policyId: number
-  requestKey: string
-  issueType: CouponIssueRequestType
-  status: CouponIssueRequestStatus
-  requestedCount: number
-  successCount: number
-  failedCount: number
-  skippedCount: number
-  targetUserMaxId: number | null
-  requestedBy: number
-  requestedAt: string | number[]
-  startedAt: string | number[] | null
-  completedAt: string | number[] | null
-  failureReason: string | null
-}

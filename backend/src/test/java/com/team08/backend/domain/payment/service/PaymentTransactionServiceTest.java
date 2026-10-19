@@ -1,11 +1,9 @@
 package com.team08.backend.domain.payment.service;
 
 import com.team08.backend.domain.enrollment.repository.EnrollmentRepository;
-import com.team08.backend.domain.issuedcoupon.service.IssuedCouponService;
 import com.team08.backend.domain.order.entity.Order;
 import com.team08.backend.domain.order.entity.OrderStatus;
 import com.team08.backend.domain.order.repository.OrderRepository;
-import com.team08.backend.domain.ordercouponusage.repository.OrderCouponUsageRepository;
 import com.team08.backend.domain.orderitem.entity.OrderItem;
 import com.team08.backend.domain.orderitem.repository.OrderItemRepository;
 import com.team08.backend.domain.payment.client.TossPaymentException;
@@ -77,12 +75,6 @@ class PaymentTransactionServiceTest {
     private EnrollmentRepository enrollmentRepository;
 
     @Mock
-    private IssuedCouponService issuedCouponService;
-
-    @Mock
-    private OrderCouponUsageRepository orderCouponUsageRepository;
-
-    @Mock
     private PaymentSuccessOutboxService paymentSuccessOutboxService;
 
     private PaymentTransactionService paymentTransactionService;
@@ -95,8 +87,6 @@ class PaymentTransactionServiceTest {
                 orderRepository,
                 orderItemRepository,
                 enrollmentRepository,
-                issuedCouponService,
-                orderCouponUsageRepository,
                 paymentSuccessOutboxService,
                 FIXED_CLOCK
         );
@@ -720,11 +710,11 @@ class PaymentTransactionServiceTest {
     }
 
     private ConfirmPaymentRequest confirmRequest() {
-        return new ConfirmPaymentRequest("payment-key", "CARD", 30_000, null, null);
+        return new ConfirmPaymentRequest("payment-key", "CARD", 30_000);
     }
 
     private ConfirmPaymentRequest confirmRequest(String idempotencyKey) {
-        return new ConfirmPaymentRequest("payment-key", "CARD", 30_000, null, null, idempotencyKey);
+        return new ConfirmPaymentRequest("payment-key", "CARD", 30_000, idempotencyKey);
     }
 
     private TossPaymentResponse tossResponse(String orderNumber, String status, int amount) {

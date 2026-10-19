@@ -125,14 +125,14 @@ class LectureAccessValidatorTest {
 
     @Test
     void validateCourseAccess_권한이_없으면_예외가_전파된다() {
-        willThrow(new CustomException(ErrorCode.STUDY_ACCESS_DENIED))
+        willThrow(new CustomException(ErrorCode.COURSE_ACCESS_DENIED))
                 .given(courseAccessAuthorizer)
                 .authorizeByCourseId(COURSE_ID, USER_ID, CourseAction.VIEW_CONTENT);
 
         assertThatThrownBy(() -> validator.validateCourseAccess(COURSE_ID, USER_ID))
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())
-                .isEqualTo(ErrorCode.STUDY_ACCESS_DENIED);
+                .isEqualTo(ErrorCode.COURSE_ACCESS_DENIED);
     }
 
     private Lecture lecture(boolean freePreview) {

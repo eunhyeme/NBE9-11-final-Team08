@@ -9,7 +9,6 @@ import {
   CheckCircle2,
   PlayCircle,
   UserCheck,
-  TicketPercent,
 } from 'lucide-react'
 import { api } from '@/lib/api'
 import { Button } from '@/components/ui/button'
@@ -116,18 +115,6 @@ export default async function AdminDashboardPage() {
           <div>
             <h3 className="font-semibold">데이터 보존 감사</h3>
             <p className="text-sm text-muted-foreground">보존 로그·접근 이력·정합성 오류</p>
-          </div>
-          <ArrowRight className="h-5 w-5 text-muted-foreground" />
-        </Link>
-        <Link
-          href="/admin/coupons"
-          className="flex items-center justify-between rounded-xl border bg-card p-5 transition-colors hover:bg-secondary"
-        >
-          <div>
-            <h3 className="flex items-center gap-2 font-semibold">
-              <TicketPercent className="h-4 w-4" /> 쿠폰 정책 관리
-            </h3>
-            <p className="text-sm text-muted-foreground">쿠폰 생성 및 발급 상태 관리</p>
           </div>
           <ArrowRight className="h-5 w-5 text-muted-foreground" />
         </Link>

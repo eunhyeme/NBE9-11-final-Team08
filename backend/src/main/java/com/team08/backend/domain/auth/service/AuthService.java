@@ -10,7 +10,6 @@ import com.team08.backend.domain.auth.repository.RefreshTokenRepository;
 import com.team08.backend.domain.auth.token.JwtProvider;
 import com.team08.backend.domain.auth.token.TokenHasher;
 import com.team08.backend.domain.auth.token.TokenProperties;
-import com.team08.backend.domain.couponreward.outbox.service.CouponRewardOutboxService;
 import com.team08.backend.domain.seller.entity.Seller;
 import com.team08.backend.domain.seller.repository.SellerRepository;
 import com.team08.backend.domain.user.dto.LoginUserDto;
@@ -42,7 +41,6 @@ public class AuthService {
 
     private final Clock clock;
 
-    private final CouponRewardOutboxService couponRewardOutboxService;
 
     private final SellerRepository sellerRepository;
 
@@ -108,8 +106,7 @@ public class AuthService {
         User user = User.createUser(request.email(), encodedPassword, request.nickname(), request.profileImage());
 
         try {
-            User savedUser = userRepository.saveAndFlush(user);
-            couponRewardOutboxService.createUserSignedUpEvent(savedUser.getId());
+            userRepository.saveAndFlush(user);
         } catch (DataIntegrityViolationException e) {
             throw new DuplicateEmailException();
         }

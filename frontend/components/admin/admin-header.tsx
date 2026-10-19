@@ -6,7 +6,6 @@ import {
   LayoutDashboard,
   ShieldCheck,
   Store,
-  TicketPercent,
   BookOpen,
   Layers,
   AlertTriangle,
@@ -20,7 +19,6 @@ const links = [
   { href: '/admin/learning', label: '학습 드릴다운', icon: Layers },
   { href: '/admin/anomalies', label: '이상 탐지', icon: AlertTriangle },
   { href: '/admin/audit', label: '데이터 감사', icon: FileSearch },
-  { href: '/admin/coupons', label: '쿠폰 정책', icon: TicketPercent },
   { href: '/admin/courses', label: '강좌 심사', icon: BookOpen },
 ]
 

@@ -36,8 +36,6 @@ export function CourseDetail({ course, adminPreview = false }: { course: Course;
   const [adding, setAdding] = useState(false)
   const [isLoggedIn, setIsLoggedIn] = useState(false)
   const [isPurchased, setIsPurchased] = useState(false)
-  const [hasStudyAccess, setHasStudyAccess] = useState(false)
-  const [studyId, setStudyId] = useState<string | null>(null)
   const [isAdmin, setIsAdmin] = useState(false)
 
   const [previewOpen, setPreviewOpen] = useState(false)
@@ -112,8 +110,6 @@ export function CourseDetail({ course, adminPreview = false }: { course: Course;
         const nextIsAdmin = profile ? profile.isAdmin : false
         setIsAdmin(nextIsAdmin)
 
-        const nextStudyId = await api.getStudyIdByCourseId(course.id)
-
         let active = false
         if (profile && !nextIsAdmin) {
           try {
@@ -124,13 +120,9 @@ export function CourseDetail({ course, adminPreview = false }: { course: Course;
         }
 
         setIsPurchased(active)
-        setHasStudyAccess((active || nextIsAdmin) && !!nextStudyId)
-        setStudyId(nextStudyId)
       } catch (e) {
-        console.error('Failed to fetch course/study access:', e)
+        console.error('Failed to fetch course access:', e)
         setIsPurchased(false)
-        setHasStudyAccess(false)
-        setStudyId(null)
       }
     }
     fetchAccess()
@@ -375,13 +367,9 @@ export function CourseDetail({ course, adminPreview = false }: { course: Course;
                       </Button>
                     </>
                   ) : null}
-                  {hasStudyAccess && studyId ? (
-                    <Button asChild variant="outline" className="w-full">
-                      <Link href={`/study/${studyId}`}>스터디 입장</Link>
-                    </Button>
-                  ) : (isAdmin || isPurchased) ? (
-                    <Button variant="outline" className="w-full" disabled>
-                      스터디 미개설
+                  {isPurchased ? (
+                    <Button asChild className="w-full" size="lg">
+                      <Link href={`/learn/${course.id}`}>강의 수강하기</Link>
                     </Button>
                   ) : null}
 

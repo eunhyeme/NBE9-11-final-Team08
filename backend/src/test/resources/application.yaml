@@ -3,15 +3,6 @@ spring:
     active: test
   flyway:
     enabled: false
-  ai:
-    model:
-      chat: none
-      embedding: none
-      image: none
-      moderation: none
-      audio:
-        speech: none
-        transcription: none
   datasource:
     # 운영(Asia/Seoul)과 동일하게 DB 세션 타임존을 +09:00으로 맞춘다.
     # 컨테이너 MySQL은 기본 UTC라, 이게 없으면 CURRENT_TIMESTAMP 가 JVM의
@@ -33,10 +24,6 @@ spring:
       ddl-auto: create-drop
     open-in-view: false
     show-sql: false
-
-  batch:
-    job:
-      enabled: false
 
   cloud:
     aws:
@@ -80,9 +67,6 @@ app:
   payment:
     success-outbox:
       scheduler-enabled: false
-  ai:
-    model: stub
-    prompt-version: v1
   data-init:
     mode: none
   jwt:

@@ -11,7 +11,6 @@ import com.team08.backend.domain.orderitem.repository.OrderItemRepository;
 import com.team08.backend.domain.payment.entity.Payment;
 import com.team08.backend.domain.payment.entity.PaymentProviderType;
 import com.team08.backend.domain.payment.repository.PaymentRepository;
-import com.team08.backend.domain.payment.service.PaidCourseStudyMemberService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -64,8 +63,6 @@ class PaymentSuccessOutboxTransactionServiceTest {
     private OrderItemRepository orderItemRepository;
     @Mock
     private EnrollmentRepository enrollmentRepository;
-    @Mock
-    private PaidCourseStudyMemberService paidCourseStudyMemberService;
 
     private PaymentSuccessOutboxTransactionService transactionService;
 
@@ -77,14 +74,13 @@ class PaymentSuccessOutboxTransactionServiceTest {
                 orderRepository,
                 orderItemRepository,
                 enrollmentRepository,
-                paidCourseStudyMemberService,
                 FIXED_CLOCK,
                 PROPERTIES
         );
     }
 
     @Test
-    void processingEventIssuesEnrollmentThenJoinsPaidStudy() {
+    void processingEventIssuesEnrollment() {
         PaymentSuccessOutboxEvent event = pendingEvent();
         Order order = paidOrder();
         Payment payment = successfulPayment(order);
@@ -108,7 +104,6 @@ class PaymentSuccessOutboxTransactionServiceTest {
             assertThat(enrollment.getStatus()).isEqualTo(EnrollmentStatus.ACTIVE);
             assertThat(enrollment.getEnrolledAt()).isEqualTo(PAID_AT);
         });
-        verify(paidCourseStudyMemberService).joinAsMember(USER_ID, List.of(COURSE_ID), PAID_AT);
         assertThat(event.getStatus()).isEqualTo(PaymentSuccessOutboxStatus.SUCCESS);
         assertThat(event.getProcessedAt()).isEqualTo(FIXED_NOW);
         assertThat(event.getLastError()).isNull();
@@ -131,7 +126,6 @@ class PaymentSuccessOutboxTransactionServiceTest {
         transactionService.processReady(EVENT_ID);
 
         verify(enrollmentRepository, never()).saveAllAndFlush(any());
-        verify(paidCourseStudyMemberService).joinAsMember(USER_ID, List.of(COURSE_ID), PAID_AT);
         assertThat(event.getStatus()).isEqualTo(PaymentSuccessOutboxStatus.SUCCESS);
     }
 
@@ -182,7 +176,6 @@ class PaymentSuccessOutboxTransactionServiceTest {
         assertThat(event.getProcessedAt()).isEqualTo(FIXED_NOW);
         assertThat(event.getLastError()).isNull();
         assertThat(event.getNextRetryAt()).isNull();
-        verify(paidCourseStudyMemberService).joinAsMember(USER_ID, List.of(COURSE_ID), PAID_AT);
     }
 
     @Test

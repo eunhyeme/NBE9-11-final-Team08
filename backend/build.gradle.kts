@@ -20,8 +20,6 @@ repositories {
 
 dependencies {
     implementation("io.awspring.cloud:spring-cloud-aws-starter-s3:3.3.0")
-    implementation(platform("org.springframework.ai:spring-ai-bom:1.1.8"))
-    implementation("org.springframework.boot:spring-boot-starter-batch")
     implementation("org.springframework.boot:spring-boot-starter-actuator")
     runtimeOnly("io.micrometer:micrometer-registry-prometheus")
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")
@@ -29,7 +27,6 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-security")
     implementation("org.springframework.boot:spring-boot-starter-validation")
     implementation("org.springframework.boot:spring-boot-starter-web")
-    implementation("org.springframework.ai:spring-ai-starter-model-openai")
     implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.16")
     implementation("io.jsonwebtoken:jjwt-api:0.13.0")
     implementation("org.flywaydb:flyway-core")
@@ -50,7 +47,6 @@ dependencies {
 
     // Test
     testImplementation("org.springframework.boot:spring-boot-starter-test")
-    testImplementation("org.springframework.batch:spring-batch-test")
     testImplementation("org.springframework.security:spring-security-test")
     testImplementation("org.testcontainers:junit-jupiter")
     testImplementation("org.testcontainers:mysql")

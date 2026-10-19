@@ -9,8 +9,6 @@ export interface PendingPayment {
   orderName: string
   provider: PaymentProvider
   fromCart: boolean
-  itemCouponIds?: Record<number, number> | null
-  stackableCouponId?: number | null
   idempotencyKey?: string
   createdAt: string
 }

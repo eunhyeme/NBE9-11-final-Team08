@@ -3,25 +3,7 @@ spring:
     open-in-view: false
     hibernate:
       ddl-auto: validate
-  ai:
-    model:
-      chat: openai
-      embedding: none
-      image: none
-      moderation: none
-      audio:
-        speech: none
-        transcription: none
-    openai:
-      api-key: ${OPENAI_API_KEY}
-      chat:
-        options:
-          model: ${OPENAI_MODEL:gpt-4.1-mini}
-          temperature: 0.2
 
 app:
   cors:
     allowed-origins: ${CORS_ALLOWED_ORIGINS}
-  ai:
-    model: ${OPENAI_MODEL:gpt-4.1-mini}
-    prompt-version: v1

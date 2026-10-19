@@ -11,11 +11,8 @@ export function AccountSidebar({ profile }: { profile: UserProfile | null }) {
   const pathname = usePathname()
 
   const links = [
-    { label: '내 강좌 & 스터디', href: '/mypage' },
-    { label: '스터디 리포트', href: '/mypage/report' },
+    { label: '내 강좌', href: '/mypage' },
     { label: '주문 내역', href: '/orders' },
-    { label: '내 쿠폰', href: '/mypage/coupons' },
-    { label: `내 ${profile?.isSeller ? '답변' : '질문'}`, href: '/mypage/comments' },
   ]
 
   return (

@@ -11,7 +11,6 @@ import com.team08.backend.domain.orderitem.repository.OrderItemRepository;
 import com.team08.backend.domain.payment.entity.Payment;
 import com.team08.backend.domain.payment.entity.PaymentStatus;
 import com.team08.backend.domain.payment.repository.PaymentRepository;
-import com.team08.backend.domain.payment.service.PaidCourseStudyMemberService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
@@ -33,7 +32,6 @@ public class PaymentSuccessOutboxTransactionService {
     private final OrderRepository orderRepository;
     private final OrderItemRepository orderItemRepository;
     private final EnrollmentRepository enrollmentRepository;
-    private final PaidCourseStudyMemberService paidCourseStudyMemberService;
     private final Clock clock;
     private final PaymentSuccessOutboxProperties properties;
 
@@ -99,7 +97,6 @@ public class PaymentSuccessOutboxTransactionService {
             enrollmentRepository.saveAllAndFlush(newEnrollments);
         }
 
-        paidCourseStudyMemberService.joinAsMember(event.getUserId(), courseIds, enrolledAt);
         event.markSuccess(LocalDateTime.now(clock));
     }
 

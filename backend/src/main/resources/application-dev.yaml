@@ -3,15 +3,6 @@ spring:
     aws:
       s3:
         enabled: false
-  ai:
-    model:
-      chat: none
-      embedding: none
-      image: none
-      moderation: none
-      audio:
-        speech: none
-        transcription: none
 springdoc:
   api-docs:
     enabled: true
@@ -24,9 +15,6 @@ app:
     allowed-origins:
       - http://localhost:3000
       - http://127.0.0.1:3000
-  ai:
-    model: stub
-    prompt-version: v1
   data-init:
     mode: ${APP_DATA_INIT_MODE:none}  # none:더미데이터 필요 x | simple: 더미데이터 소량생성 | bulk : 더미데이터 대량생성
   jwt:

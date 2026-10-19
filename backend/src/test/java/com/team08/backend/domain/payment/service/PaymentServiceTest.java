@@ -3,11 +3,9 @@ package com.team08.backend.domain.payment.service;
 import com.team08.backend.domain.enrollment.entity.Enrollment;
 import com.team08.backend.domain.enrollment.entity.EnrollmentStatus;
 import com.team08.backend.domain.enrollment.repository.EnrollmentRepository;
-import com.team08.backend.domain.issuedcoupon.service.IssuedCouponService;
 import com.team08.backend.domain.order.entity.Order;
 import com.team08.backend.domain.order.entity.OrderStatus;
 import com.team08.backend.domain.order.repository.OrderRepository;
-import com.team08.backend.domain.ordercouponusage.repository.OrderCouponUsageRepository;
 import com.team08.backend.domain.orderitem.entity.OrderItem;
 import com.team08.backend.domain.orderitem.repository.OrderItemRepository;
 import com.team08.backend.domain.payment.config.NicepayPaymentProperties;
@@ -95,15 +93,6 @@ class PaymentServiceTest {
     private PaymentTransactionService paymentTransactionService;
 
     @Mock
-    private IssuedCouponService issuedCouponService;
-
-    @Mock
-    private OrderCouponUsageRepository orderCouponUsageRepository;
-
-    @Mock
-    private PaidCourseStudyMemberService paidCourseStudyMemberService;
-
-    @Mock
     private PaymentSuccessOutboxService paymentSuccessOutboxService;
 
     private PaymentService paymentService;
@@ -126,9 +115,6 @@ class PaymentServiceTest {
                 enrollmentRepository,
                 paymentProviderRouter,
                 paymentTransactionService,
-                issuedCouponService,
-                orderCouponUsageRepository,
-                paidCourseStudyMemberService,
                 paymentSuccessOutboxService,
                 nicepayPaymentProperties,
                 FIXED_CLOCK
@@ -176,76 +162,6 @@ class PaymentServiceTest {
         verify(enrollmentRepository, never()).saveAll(any());
         verify(enrollmentRepository, never()).saveAllAndFlush(any());
         verify(paymentSuccessOutboxService).createIfAbsent(PAYMENT_ID, ORDER_ID, USER_ID);
-        verify(paidCourseStudyMemberService, never()).joinAsMember(any(), any(), any());
-    }
-
-    @Test
-    @DisplayName("쿠폰을 사용하여 결제를 승인하면 할인 금액이 적용되고 사용 내역이 저장된다")
-    void confirmPaymentWithCouponAppliesDiscountAndSavesUsage() {
-        Order order = order(OrderStatus.PENDING_PAYMENT);
-        OrderItem orderItem = orderItem(1L, COURSE_ID, 30_000);
-        Long issuedCouponId = 55L;
-
-        given(orderRepository.findByIdAndUserIdForUpdate(ORDER_ID, USER_ID)).willReturn(Optional.of(order));
-        given(paymentRepository.findByOrder_Id(ORDER_ID)).willReturn(Optional.empty());
-        given(orderItemRepository.findAllByOrderId(ORDER_ID)).willReturn(List.of(orderItem));
-        given(enrollmentRepository.findCourseIdsByUserIdAndCourseIdIn(
-                USER_ID,
-                List.of(COURSE_ID)
-        )).willReturn(List.of());
-
-        given(issuedCouponService.calculateExpectedDiscounts(eq(USER_ID), isNull(), eq(issuedCouponId), anyList(), eq(30_000)))
-                .willReturn(5000);
-        given(issuedCouponService.useCouponsForOrder(eq(USER_ID), isNull(), eq(issuedCouponId), anyList(), eq(30_000), eq(ORDER_ID)))
-                .willReturn(new com.team08.backend.domain.issuedcoupon.dto.CouponUsageResult(5000, List.of(new com.team08.backend.domain.ordercouponusage.entity.OrderCouponUsage(ORDER_ID, issuedCouponId, 5000))));
-
-        stubPaymentSave();
-
-        ConfirmPaymentResponse response = paymentService.confirmPayment(USER_ID, ORDER_ID, new ConfirmPaymentRequest("payment-key", "CARD", 25_000, null, issuedCouponId));
-
-        verify(orderCouponUsageRepository).saveAll(any());
-        assertThat(order.getDiscountPrice()).isEqualTo(5000);
-        assertThat(order.getFinalPrice()).isEqualTo(25_000);
-        assertThat(response.amount()).isEqualTo(25_000);
-    }
-
-    @Test
-    @DisplayName("전체 회원 쿠폰이 materialize된 직후 해당 쿠폰으로 결제할 수 있다")
-    void confirmPayment_afterAllUsersCouponMaterialized_usesCouponAndCompletesPayment() {
-        // given
-        Order order = order(OrderStatus.PENDING_PAYMENT);
-        OrderItem orderItem = orderItem(1L, COURSE_ID, 30_000);
-        Long materializedAllUsersCouponId = 55L;
-
-        given(orderRepository.findByIdAndUserIdForUpdate(ORDER_ID, USER_ID)).willReturn(Optional.of(order));
-        given(paymentRepository.findByOrder_Id(ORDER_ID)).willReturn(Optional.empty());
-        given(orderItemRepository.findAllByOrderId(ORDER_ID)).willReturn(List.of(orderItem));
-        given(enrollmentRepository.findCourseIdsByUserIdAndCourseIdIn(
-                USER_ID,
-                List.of(COURSE_ID)
-        )).willReturn(List.of());
-        given(issuedCouponService.calculateExpectedDiscounts(eq(USER_ID), isNull(), eq(materializedAllUsersCouponId), anyList(), eq(30_000)))
-                .willReturn(5_000);
-        given(issuedCouponService.useCouponsForOrder(eq(USER_ID), isNull(), eq(materializedAllUsersCouponId), anyList(), eq(30_000), eq(ORDER_ID)))
-                .willReturn(new com.team08.backend.domain.issuedcoupon.dto.CouponUsageResult(5_000, List.of(new com.team08.backend.domain.ordercouponusage.entity.OrderCouponUsage(ORDER_ID, materializedAllUsersCouponId, 5_000))));
-        stubPaymentSave();
-
-        // when
-        ConfirmPaymentResponse response = paymentService.confirmPayment(
-                USER_ID,
-                ORDER_ID,
-                new ConfirmPaymentRequest("payment-key", "CARD", 25_000, null, materializedAllUsersCouponId)
-        );
-
-        // then
-        verify(issuedCouponService).calculateExpectedDiscounts(eq(USER_ID), isNull(), eq(materializedAllUsersCouponId), anyList(), eq(30_000));
-        verify(issuedCouponService).useCouponsForOrder(eq(USER_ID), isNull(), eq(materializedAllUsersCouponId), anyList(), eq(30_000), eq(ORDER_ID));
-        verify(orderCouponUsageRepository).saveAll(any());
-        assertThat(order.getDiscountPrice()).isEqualTo(5_000);
-        assertThat(order.getFinalPrice()).isEqualTo(25_000);
-        assertThat(order.getStatus()).isEqualTo(OrderStatus.PAID);
-        assertThat(response.amount()).isEqualTo(25_000);
-        assertThat(response.orderStatus()).isEqualTo(OrderStatus.PAID);
     }
 
     @Test
@@ -261,7 +177,7 @@ class PaymentServiceTest {
         NicepayPreparePaymentResponse response = paymentService.prepareNicepayPayment(
                 user,
                 ORDER_ID,
-                new NicepayPreparePaymentRequest("CARD", null, null)
+                new NicepayPreparePaymentRequest("CARD")
         );
 
         assertThat(response.goodsName()).isEqualTo("Spring");
@@ -284,7 +200,7 @@ class PaymentServiceTest {
         assertThatThrownBy(() -> paymentService.prepareNicepayPayment(
                 user,
                 ORDER_ID,
-                new NicepayPreparePaymentRequest("BANK", null, null)
+                new NicepayPreparePaymentRequest("BANK")
         ))
                 .isInstanceOfSatisfying(CustomException.class,
                         e -> assertThat(e.getErrorCode()).isEqualTo(ErrorCode.INVALID_INPUT_VALUE));
@@ -431,7 +347,6 @@ class PaymentServiceTest {
         assertThat(paymentCaptor.getValue().getAmount()).isEqualTo(30_000);
         assertThat(response.paymentStatus()).isEqualTo(PaymentStatus.DECLINED);
         assertThat(order.getStatus()).isEqualTo(OrderStatus.PENDING_PAYMENT);
-        verifyNoInteractions(issuedCouponService);
     }
 
     @Test
@@ -469,10 +384,7 @@ class PaymentServiceTest {
                 "ORD-20260612100000-ABC12345",
                 30_000,
                 PAYMENT_ID,
-                200L,
-                null,
-                null,
-                0
+                200L
         );
         PaymentProviderConfirmResponse providerResponse = providerResponse(context.orderNumber(), "DONE", 30_000);
         ConfirmPaymentResponse expectedResponse = confirmSuccessResponse();
@@ -501,10 +413,7 @@ class PaymentServiceTest {
                 "ORD-20260612100000-ABC12345",
                 30_000,
                 PAYMENT_ID,
-                200L,
-                null,
-                null,
-                0
+                200L
         );
         PaymentProviderException exception = PaymentProviderException.timeout("TOSS_TIMEOUT", "Toss timeout");
         ConfirmPaymentResponse expectedResponse = pendingPaymentResponse(PaymentStatus.UNKNOWN);
@@ -531,10 +440,7 @@ class PaymentServiceTest {
                 "ORD-20260612100000-ABC12345",
                 30_000,
                 PAYMENT_ID,
-                200L,
-                null,
-                null,
-                0
+                200L
         );
         PaymentProviderConfirmResponse providerResponse = providerResponse(context.orderNumber(), "DONE", 30_000);
         ConfirmPaymentResponse expectedResponse = confirmSuccessResponse();
@@ -562,10 +468,7 @@ class PaymentServiceTest {
                 "ORD-20260612100000-ABC12345",
                 30_000,
                 PAYMENT_ID,
-                200L,
-                null,
-                null,
-                0
+                200L
         );
         PaymentProviderException exception = PaymentProviderException.timeout("NICEPAY_TIMEOUT", "NICEPAY timeout");
         ConfirmPaymentResponse expectedResponse = pendingPaymentResponse(PaymentStatus.UNKNOWN);
@@ -762,23 +665,6 @@ class PaymentServiceTest {
         assertThat(enrollment.getCanceledAt()).isEqualTo(FIXED_NOW);
         assertThat(response.paymentStatus()).isEqualTo(PaymentStatus.REFUNDED);
         assertThat(response.orderStatus()).isEqualTo(OrderStatus.REFUNDED);
-        verify(paidCourseStudyMemberService).leaveMember(USER_ID, List.of(COURSE_ID), FIXED_NOW);
-    }
-
-    @Test
-    void couponUsageIsKeptWhenPaidOrderIsRefunded() {
-        Order order = order(OrderStatus.PAID);
-        Payment payment = payment(order, PaymentStatus.SUCCESS);
-
-        given(orderRepository.findByIdAndUserIdForUpdate(ORDER_ID, USER_ID)).willReturn(Optional.of(order));
-        given(paymentRepository.findByOrder_Id(ORDER_ID)).willReturn(Optional.of(payment));
-        given(enrollmentRepository.findAllByOrder_IdAndStatus(ORDER_ID, EnrollmentStatus.ACTIVE))
-                .willReturn(List.of());
-//        given(orderCouponUsageRepository.findByOrderId(ORDER_ID)).willReturn(Optional.empty());
-
-        paymentService.refundPayment(USER_ID, ORDER_ID);
-
-        verifyNoInteractions(issuedCouponService);
     }
 
     @Test
@@ -795,7 +681,7 @@ class PaymentServiceTest {
 
         assertThat(order.getStatus()).isEqualTo(OrderStatus.PAID);
         assertThat(payment.getStatus()).isEqualTo(PaymentStatus.SUCCESS);
-        verifyNoInteractions(enrollmentRepository, paidCourseStudyMemberService);
+        verifyNoInteractions(enrollmentRepository);
     }
 
     @Test
@@ -812,7 +698,7 @@ class PaymentServiceTest {
 
         assertThat(order.getStatus()).isEqualTo(OrderStatus.PAID);
         assertThat(payment.getStatus()).isEqualTo(PaymentStatus.DECLINED);
-        verifyNoInteractions(enrollmentRepository, paidCourseStudyMemberService);
+        verifyNoInteractions(enrollmentRepository);
     }
 
     @Test
@@ -885,11 +771,11 @@ class PaymentServiceTest {
     }
 
     private ConfirmPaymentRequest confirmRequest(int amount) {
-        return new ConfirmPaymentRequest("payment-key", "CARD", amount, null, null);
+        return new ConfirmPaymentRequest("payment-key", "CARD", amount);
     }
 
     private ConfirmPaymentRequest confirmRequest(int amount, String idempotencyKey) {
-        return new ConfirmPaymentRequest("payment-key", "CARD", amount, null, null, idempotencyKey);
+        return new ConfirmPaymentRequest("payment-key", "CARD", amount, idempotencyKey);
     }
 
     private PaymentAttempt paymentAttempt(Payment payment, String idempotencyKey) {
@@ -930,7 +816,7 @@ class PaymentServiceTest {
     }
 
     private FailPaymentRequest failRequest(int amount) {
-        return new FailPaymentRequest("payment-key", "CARD", amount, "승인 실패", null, null);
+        return new FailPaymentRequest("payment-key", "CARD", amount, "승인 실패");
     }
 
 }

@@ -10,8 +10,6 @@ import com.team08.backend.domain.course.entity.Course;
 import com.team08.backend.domain.course.entity.CourseSortType;
 import com.team08.backend.domain.course.entity.CourseStatus;
 import com.team08.backend.domain.course.event.AdminCourseRejectedEvent;
-import com.team08.backend.domain.course.event.CourseClosedEvent;
-import com.team08.backend.domain.course.event.CourseDeletedEvent;
 import com.team08.backend.domain.media.event.CourseThumbnailEvent;
 import com.team08.backend.domain.course.fixture.CourseFixture;
 import com.team08.backend.domain.course.repository.CourseRepository;
@@ -25,8 +23,6 @@ import com.team08.backend.domain.lecture.fixture.LectureFixture;
 import com.team08.backend.domain.lecture.repository.LectureRepository;
 import com.team08.backend.domain.media.service.CourseThumbnailService;
 import com.team08.backend.domain.media.service.MediaEncodingService;
-import com.team08.backend.domain.study.command.CourseStudyCreateCommand;
-import com.team08.backend.domain.study.service.CourseStudyManager;
 import com.team08.backend.global.exception.CustomException;
 import com.team08.backend.global.exception.ErrorCode;
 import com.team08.backend.global.util.FileUrlFormatter;
@@ -68,9 +64,6 @@ class CourseServiceTest {
 
     @Mock
     private CourseViewCountManager courseViewCountManager;
-
-    @Mock
-    private CourseStudyManager courseStudyManager;
 
     @Mock
     private EnrollmentRepository enrollmentRepository;
@@ -557,13 +550,11 @@ class CourseServiceTest {
         setField(statusField, course, CourseStatus.IN_REVIEW);
 
         given(courseRepository.findById(courseId)).willReturn(Optional.of(course));
-        given(courseStudyManager.createForCourse(any(CourseStudyCreateCommand.class))).willReturn(1L);
 
         courseService.approveCourseReview(courseId, adminId);
 
         assertThat(course.getStatus()).isEqualTo(CourseStatus.ON_SALE);
         verify(courseStatusHistoryRepository).save(any(CourseStatusHistory.class));
-        verify(courseStudyManager).createForCourse(any(CourseStudyCreateCommand.class));
     }
 
     @Test
@@ -666,7 +657,6 @@ class CourseServiceTest {
 
         assertThat(course.getStatus()).isEqualTo(CourseStatus.SUSPENDED);
         verify(courseStatusHistoryRepository).save(any(CourseStatusHistory.class));
-        verify(eventPublisher).publishEvent(any(CourseClosedEvent.class));
     }
 
     @Test
@@ -718,7 +708,6 @@ class CourseServiceTest {
 
         assertThat(course.getStatus()).isEqualTo(CourseStatus.SUSPENDED);
         verify(courseStatusHistoryRepository).save(any(CourseStatusHistory.class));
-        verify(eventPublisher).publishEvent(any(CourseClosedEvent.class));
     }
 
     @Test
@@ -738,7 +727,6 @@ class CourseServiceTest {
                 .hasMessageContaining(ErrorCode.COURSE_HAS_ACTIVE_ENROLLMENTS.getMessage());
 
         verify(courseStatusHistoryRepository, never()).save(any(CourseStatusHistory.class));
-        verify(eventPublisher, never()).publishEvent(any(CourseDeletedEvent.class));
     }
 
     @Test
@@ -762,7 +750,6 @@ class CourseServiceTest {
         assertThat(course.getStatus()).isEqualTo(CourseStatus.DELETED);
         verify(courseThumbnailService).deleteThumbnail("courses/thumbnails/100/thumb.jpg");
         verify(courseStatusHistoryRepository).save(any(CourseStatusHistory.class));
-        verify(eventPublisher).publishEvent(any(CourseDeletedEvent.class));
     }
 
     @Test
@@ -786,7 +773,6 @@ class CourseServiceTest {
         assertThat(course.getStatus()).isEqualTo(CourseStatus.DELETED);
         verify(courseThumbnailService).deleteThumbnail("courses/thumbnails/100/thumb.jpg");
         verify(courseStatusHistoryRepository).save(any(CourseStatusHistory.class));
-        verify(eventPublisher).publishEvent(any(CourseDeletedEvent.class));
     }
 
     @Test
@@ -824,7 +810,6 @@ class CourseServiceTest {
                 .hasMessageContaining(ErrorCode.COURSE_HAS_ACTIVE_ENROLLMENTS.getMessage());
 
         verify(courseStatusHistoryRepository, never()).save(any(CourseStatusHistory.class));
-        verify(eventPublisher, never()).publishEvent(any(CourseDeletedEvent.class));
     }
 
     @Test
@@ -848,7 +833,6 @@ class CourseServiceTest {
         assertThat(course.getStatus()).isEqualTo(CourseStatus.DELETED);
         verify(courseThumbnailService).deleteThumbnail("courses/thumbnails/100/thumb.jpg");
         verify(courseStatusHistoryRepository).save(any(CourseStatusHistory.class));
-        verify(eventPublisher).publishEvent(any(CourseDeletedEvent.class));
     }
 
     @Test
@@ -872,7 +856,6 @@ class CourseServiceTest {
         assertThat(course.getStatus()).isEqualTo(CourseStatus.DELETED);
         verify(courseThumbnailService).deleteThumbnail("courses/thumbnails/100/thumb.jpg");
         verify(courseStatusHistoryRepository).save(any(CourseStatusHistory.class));
-        verify(eventPublisher).publishEvent(any(CourseDeletedEvent.class));
     }
 
     @Test

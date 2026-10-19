@@ -3,13 +3,9 @@ package com.team08.backend.domain.payment.service;
 import com.team08.backend.domain.enrollment.entity.Enrollment;
 import com.team08.backend.domain.enrollment.entity.EnrollmentStatus;
 import com.team08.backend.domain.enrollment.repository.EnrollmentRepository;
-import com.team08.backend.domain.issuedcoupon.dto.CouponUsageResult;
-import com.team08.backend.domain.issuedcoupon.service.IssuedCouponService;
 import com.team08.backend.domain.order.entity.Order;
 import com.team08.backend.domain.order.entity.OrderStatus;
 import com.team08.backend.domain.order.repository.OrderRepository;
-import com.team08.backend.domain.ordercouponusage.entity.OrderCouponUsage;
-import com.team08.backend.domain.ordercouponusage.repository.OrderCouponUsageRepository;
 import com.team08.backend.domain.orderitem.entity.OrderItem;
 import com.team08.backend.domain.orderitem.repository.OrderItemRepository;
 import com.team08.backend.domain.payment.config.NicepayPaymentProperties;
@@ -59,9 +55,6 @@ public class PaymentService {
     private final EnrollmentRepository enrollmentRepository;
     private final PaymentProviderRouter paymentProviderRouter;
     private final PaymentTransactionService paymentTransactionService;
-    private final IssuedCouponService issuedCouponService;
-    private final OrderCouponUsageRepository orderCouponUsageRepository;
-    private final PaidCourseStudyMemberService paidCourseStudyMemberService;
     private final PaymentSuccessOutboxService paymentSuccessOutboxService;
     private final NicepayPaymentProperties nicepayPaymentProperties;
     private final Clock clock;
@@ -85,24 +78,9 @@ public class PaymentService {
 
         List<OrderItem> orderItems = findOrderItems(order);
 
-        int expectedDiscount = 0;
-        if ((request.itemCouponIds() != null && !request.itemCouponIds().isEmpty()) || request.stackableCouponId() != null) {
-            expectedDiscount = issuedCouponService.calculateExpectedDiscounts(
-                    userId, request.itemCouponIds(), request.stackableCouponId(), orderItems, order.getTotalPrice()
-            );
-        }
-
-        validatePaymentAmount(order, request.amount(), expectedDiscount);
+        validatePaymentAmount(order, request.amount());
 
         validateDuplicateEnrollment(userId, orderItems);
-
-        if ((request.itemCouponIds() != null && !request.itemCouponIds().isEmpty()) || request.stackableCouponId() != null) {
-            CouponUsageResult usageResult = issuedCouponService.useCouponsForOrder(
-                    userId, request.itemCouponIds(), request.stackableCouponId(), orderItems, order.getTotalPrice(), order.getId()
-            );
-            order.applyDiscount(usageResult.totalDiscount());
-            orderCouponUsageRepository.saveAll(usageResult.usages());
-        }
 
         LocalDateTime paidAt = LocalDateTime.now(clock);
         Payment savedPayment = processSuccessfulPayment(order, existingPayment, request, paidAt);
@@ -171,20 +149,12 @@ public class PaymentService {
         validateConfirmableOrder(order);
         validateConfirmablePayment(paymentRepository.findByOrder_Id(orderId));
 
-        int expectedDiscount = calculateExpectedDiscounts(user.id(), request.itemCouponIds(), request.stackableCouponId(), order, findOrderItems(order));
-        int amount = order.getFinalPrice() - expectedDiscount;
+        int amount = order.getFinalPrice();
         String ediDate = LocalDateTime.now(clock).format(NICEPAY_EDI_DATE_FORMATTER);
         String signData = NicepaySignature.sha256(
                 ediDate + nicepayPaymentProperties.mid() + amount + nicepayPaymentProperties.merchantKey()
         );
         String goodsName = getOrderName(findOrderItems(order));
-
-        String firstCouponId = null;
-        if (request.stackableCouponId() != null) {
-            firstCouponId = String.valueOf(request.stackableCouponId());
-        } else if (request.itemCouponIds() != null && !request.itemCouponIds().isEmpty()) {
-            firstCouponId = String.valueOf(request.itemCouponIds().values().iterator().next());
-        }
 
         return new NicepayPreparePaymentResponse(
                 goodsName,
@@ -198,7 +168,7 @@ public class PaymentService {
                 "",
                 user.email(),
                 NICEPAY_CHARSET,
-                firstCouponId
+                null
         );
     }
 
@@ -221,9 +191,6 @@ public class PaymentService {
         Payment payment = refundSuccessfulPayment(order, refundedAt);
         refundOrder(order, refundedAt);
         cancelActiveEnrollmentsForRefund(order, refundedAt);
-
-        List<OrderCouponUsage> usages = orderCouponUsageRepository.findByOrderId(orderId);
-        usages.forEach(usage -> issuedCouponService.refundCoupon(usage.getIssuedCouponId()));
 
         return PaymentResponse.from(payment, order);
     }
@@ -292,17 +259,10 @@ public class PaymentService {
         }
     }
 
-    private void validatePaymentAmount(Order order, int requestAmount, int expectedDiscount) {
-        if (order.getFinalPrice() - expectedDiscount != requestAmount) {
+    private void validatePaymentAmount(Order order, int requestAmount) {
+        if (order.getFinalPrice() != requestAmount) {
             throw new CustomException(ErrorCode.PAYMENT_AMOUNT_MISMATCH);
         }
-    }
-
-    private int calculateExpectedDiscounts(Long userId, java.util.Map<Long, Long> itemCouponIds, Long stackableCouponId, Order order, List<OrderItem> orderItems) {
-        if ((itemCouponIds == null || itemCouponIds.isEmpty()) && stackableCouponId == null) {
-            return 0;
-        }
-        return issuedCouponService.calculateExpectedDiscounts(userId, itemCouponIds, stackableCouponId, orderItems, order.getTotalPrice());
     }
 
     private void validateNicepayCardPayMethod(String payMethod) {
@@ -403,10 +363,5 @@ public class PaymentService {
     private void cancelActiveEnrollmentsForRefund(Order order, LocalDateTime canceledAt) {
         List<Enrollment> enrollments = enrollmentRepository.findAllByOrder_IdAndStatus(order.getId(), EnrollmentStatus.ACTIVE);
         enrollments.forEach(enrollment -> enrollment.cancel(canceledAt));
-        paidCourseStudyMemberService.leaveMember(
-                order.getUserId(),
-                enrollments.stream().map(Enrollment::getCourseId).toList(),
-                canceledAt
-        );
     }
 }

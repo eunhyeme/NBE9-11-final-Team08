@@ -1,36 +1,32 @@
 // frontend/app/(account)/mypage/page.tsx
 import Link from 'next/link'
 import { ArrowRight } from 'lucide-react'
-import { MyStudyActivityList } from '@/components/account/my-study-activity-list'
 import { PurchasedCourseList } from '@/components/account/purchased-course-list'
 import { Button } from '@/components/ui/button'
 import { api } from '@/lib/api'
 
 export const metadata = {
-  title: '내 강좌 & 스터디 — PlayLearn',
+  title: '내 강좌 — PlayLearn',
 }
 
 export default async function MyPage() {
-  const [purchased, activities] = await Promise.all([
-    api.getPurchasedCourses(),
-    api.getMyStudyActivities(0, 10),
-  ])
+  const purchased = await api.getPurchasedCourses()
 
   const inProgress = purchased.filter((c) => c.status === '진행 중')
-  const recentActivities = activities.content ?? []
+  const completed = purchased.filter((c) => c.status === '완료')
 
   const stats = [
     { label: '구매한 강좌', value: `${purchased.length}강좌` },
     { label: '진행 중인 강좌', value: `${inProgress.length}강좌` },
-    { label: '작성한 활동', value: `${activities.totalElements ?? recentActivities.length}개` },
+    { label: '완강한 강좌', value: `${completed.length}강좌` },
   ]
 
   return (
     <div className="space-y-10">
       <div>
-        <h1 className="text-2xl font-bold">내 강좌 & 스터디</h1>
+        <h1 className="text-2xl font-bold">내 강좌</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          구매한 강좌와 내가 작성한 스터디 활동을 한눈에 확인하세요.
+          구매한 강좌와 학습 진행 상황을 한눈에 확인하세요.
         </p>
       </div>
 
@@ -52,11 +48,6 @@ export default async function MyPage() {
         ) : (
           <EmptyState />
         )}
-      </section>
-
-      <section>
-        <h2 className="mb-4 text-lg font-bold">내 스터디 활동</h2>
-        <MyStudyActivityList initialPage={activities} />
       </section>
     </div>
   )

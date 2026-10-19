@@ -7,8 +7,6 @@ import com.team08.backend.domain.course.dto.CourseUpdateRequest;
 import com.team08.backend.domain.course.entity.Course;
 import com.team08.backend.domain.course.entity.CourseSortType;
 import com.team08.backend.domain.course.entity.CourseStatus;
-import com.team08.backend.domain.course.event.CourseClosedEvent;
-import com.team08.backend.domain.course.event.CourseDeletedEvent;
 import com.team08.backend.domain.course.repository.CourseRepository;
 import com.team08.backend.domain.coursestatushistory.entity.CourseStatusHistory;
 import com.team08.backend.domain.coursestatushistory.repository.CourseStatusHistoryRepository;
@@ -18,8 +16,6 @@ import com.team08.backend.domain.lecture.repository.LectureRepository;
 import com.team08.backend.domain.media.event.CourseThumbnailEvent;
 import com.team08.backend.domain.media.service.CourseThumbnailService;
 import com.team08.backend.domain.media.service.MediaEncodingService;
-import com.team08.backend.domain.study.command.CourseStudyCreateCommand;
-import com.team08.backend.domain.study.service.CourseStudyManager;
 import com.team08.backend.global.exception.CustomException;
 import com.team08.backend.global.exception.ErrorCode;
 import com.team08.backend.global.util.FileUrlFormatter;
@@ -53,7 +49,6 @@ public class CourseService {
     private final CourseViewCountManager courseViewCountManager;
     private final CourseViewCountRedisManager courseViewCountRedisManager;
     private final CourseDetailCacheManager courseDetailCacheManager;
-    private final CourseStudyManager courseStudyManager;
     private final EnrollmentRepository enrollmentRepository;
     private final ApplicationEventPublisher eventPublisher;
     private final MediaEncodingService mediaEncodingService;
@@ -223,14 +218,6 @@ public class CourseService {
 
         CourseStatusHistory history = course.approve(adminId);
         courseStatusHistoryRepository.save(history);
-
-        CourseStudyCreateCommand command = new CourseStudyCreateCommand(
-                course.getInstructorId(),
-                course.getId(),
-                course.getTitle(),
-                course.getDescription()
-        );
-        courseStudyManager.createForCourse(command);
         courseDetailCacheManager.evictCache(courseId);
     }
 
@@ -254,7 +241,6 @@ public class CourseService {
 
         courseStatusHistoryRepository.save(history);
 
-        eventPublisher.publishEvent(new CourseClosedEvent(courseId));
         courseDetailCacheManager.evictCache(courseId);
 
         // TODO: 일반 사용자의 신규 장바구니 담기 및 주문서 생성 차단 로직 연계 필요 (차후 장바구니/주문 도메인에서 CourseStatus.SUSPENDED 체크로 방어)
@@ -268,7 +254,6 @@ public class CourseService {
         CourseStatusHistory history = course.suspendByAdmin(adminId, reason);
         courseStatusHistoryRepository.save(history);
 
-        eventPublisher.publishEvent(new CourseClosedEvent(courseId));
         courseDetailCacheManager.evictCache(courseId);
 
         // TODO: 일반 사용자의 신규 장바구니 담기 및 주문서 생성 차단 로직 연계 필요 (차후 장바구니/주문 도메인에서 CourseStatus.SUSPENDED 체크로 방어)
@@ -286,7 +271,6 @@ public class CourseService {
         CourseStatusHistory history = course.delete(adminId);
         courseStatusHistoryRepository.save(history);
 
-        eventPublisher.publishEvent(new CourseDeletedEvent(courseId));
     }
 
     @Transactional
@@ -302,7 +286,6 @@ public class CourseService {
         CourseStatusHistory history = course.delete(instructorId);
         courseStatusHistoryRepository.save(history);
 
-        eventPublisher.publishEvent(new CourseDeletedEvent(courseId));
     }
 
     private void validateActiveEnrollments(Long courseId) {

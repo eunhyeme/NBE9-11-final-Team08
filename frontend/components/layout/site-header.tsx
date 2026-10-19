@@ -22,8 +22,6 @@ import { api } from '@/lib/api'
 
 const navLinks = [
   { href: '/', label: '강좌' },
-  { href: '/events', label: '쿠폰/이벤트' },
-  { href: '/attendance', label: '출석' },
 ]
 
 export function SiteHeader() {
@@ -162,16 +160,11 @@ export function SiteHeader() {
               <DropdownMenuContent align="end" className="w-48">
                 <DropdownMenuLabel>{userName || '회원님'}</DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                {/* 판매자는 판매자 센터만 노출한다(마이페이지·스터디 리포트는 일반 사용자용). */}
+                {/* 판매자는 판매자 센터만 노출한다(마이페이지는 일반 사용자용). */}
                 {!isSeller && (
-                  <>
-                    <DropdownMenuItem asChild>
-                      <Link href="/mypage">마이페이지</Link>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem asChild>
-                      <Link href="/mypage/report">내 스터디 리포트</Link>
-                    </DropdownMenuItem>
-                  </>
+                  <DropdownMenuItem asChild>
+                    <Link href="/mypage">마이페이지</Link>
+                  </DropdownMenuItem>
                 )}
                 {isSeller && (
                   <DropdownMenuItem asChild>

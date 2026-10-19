@@ -1,2 +1,0 @@
-ALTER TABLE feed_items
-    MODIFY COLUMN type VARCHAR(50) NOT NULL;

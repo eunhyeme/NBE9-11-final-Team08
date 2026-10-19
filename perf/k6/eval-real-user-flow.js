@@ -43,7 +43,6 @@ const COURSE_ID = envInt('COURSE_ID', 1);
 const CHAPTER_ID = envInt('CHAPTER_ID', 1);
 const LECTURE_ID = envInt('LECTURE_ID', 1);
 const INCLUDE_PURCHASE = envBool('INCLUDE_PURCHASE', false);
-const INCLUDE_COMMUNITY = envBool('INCLUDE_COMMUNITY', true);
 const THINK_MIN = envInt('THINK_MIN', STAGE === 'smoke' ? 1 : 2);
 const THINK_MAX = envInt('THINK_MAX', STAGE === 'smoke' ? 2 : 5);
 
@@ -52,7 +51,6 @@ const browseCount = new Counter('eval_browse_flow_count');
 const learningCount = new Counter('eval_learning_flow_count');
 const authCount = new Counter('eval_auth_flow_count');
 const purchaseCount = new Counter('eval_purchase_flow_count');
-const communityCount = new Counter('eval_community_flow_count');
 const flowFailureRate = new Rate('eval_flow_failure_rate');
 
 setResponseCallback(expectedStatuses({ min: 200, max: 299 }, 400, 404, 409));
@@ -94,10 +92,8 @@ export default function (data) {
     browseFlow(ids);
   } else if (roll < 0.75) {
     learningFlow(auth, ids);
-  } else if (roll < 0.85) {
+  } else if (roll < 0.90) {
     authFlow(auth);
-  } else if (roll < 0.95 && INCLUDE_COMMUNITY) {
-    communityFlow(auth, ids);
   } else if (INCLUDE_PURCHASE) {
     purchaseFlow(auth, ids);
   } else {
@@ -134,10 +130,6 @@ function browseFlow(ids) {
     ok = check(publicGet(BASE_URL, `/api/courses/${ids.courseId}`, { flow: 'browse', api: 'courses.detail' }), {
       'course detail 200': (r) => r.status === 200,
     }) && ok;
-
-    ok = check(publicGet(BASE_URL, '/api/coupons', { flow: 'browse', api: 'coupons.public' }), {
-      'public coupons 2xx': (r) => r.status >= 200 && r.status < 300,
-    }) && ok;
   });
 
   recordFlow(started, ok);
@@ -165,8 +157,8 @@ function learningFlow(auth, ids) {
   group('learning', () => {
     learningCount.add(1);
 
-    ok = check(authedGet(BASE_URL, auth, '/api/studies/me', { flow: 'learning', api: 'studies.me' }), {
-      'my studies 200': (r) => r.status === 200,
+    ok = check(authedGet(BASE_URL, auth, '/api/enrollments/me/courses', { flow: 'learning', api: 'enrollments.me' }), {
+      'my courses 200': (r) => r.status === 200,
     }) && ok;
 
     think(THINK_MIN, THINK_MAX);
@@ -211,25 +203,6 @@ function learningFlow(auth, ids) {
   recordFlow(started, ok);
 }
 
-function communityFlow(auth, ids) {
-  const started = Date.now();
-  let ok = true;
-
-  group('community', () => {
-    communityCount.add(1);
-
-    ok = check(authedGet(BASE_URL, auth, `/api/lectures/${ids.lectureId}/qna`, { flow: 'community', api: 'qna.list' }), {
-      'qna list 200': (r) => r.status === 200,
-    }) && ok;
-
-    ok = check(authedGet(BASE_URL, auth, `/api/lectures/${ids.lectureId}/reflections`, { flow: 'community', api: 'reflections.get' }), {
-      'reflection get 2xx or empty': (r) => r.status >= 200 && r.status < 300,
-    }) && ok;
-  });
-
-  recordFlow(started, ok);
-}
-
 function purchaseFlow(auth, ids) {
   const started = Date.now();
   let ok = true;
@@ -254,7 +227,6 @@ function purchaseFlow(auth, ids) {
         paymentKey: `k6-${RUN_ID}-${uuidv4()}`,
         method: 'CARD',
         amount: Number(order.finalPrice || order.totalPrice || 0),
-        issuedCouponId: null,
         idempotencyKey: `k6-${RUN_ID}-${order.orderId}-${uuidv4()}`,
       }, { flow: 'purchase', api: 'payments.mock_confirm' });
 

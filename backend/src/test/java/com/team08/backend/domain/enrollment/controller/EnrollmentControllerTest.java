@@ -36,7 +36,6 @@ class EnrollmentControllerTest {
         EnrolledCourseResponse course = new EnrolledCourseResponse(
                 100L,
                 10L,
-                20L,
                 "스프링 부트 실전",
                 "강사",
                 "/courses/spring.png",
@@ -52,7 +51,6 @@ class EnrollmentControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].enrollmentId").value(100L))
                 .andExpect(jsonPath("$[0].courseId").value(10L))
-                .andExpect(jsonPath("$[0].studyId").value(20L))
                 .andExpect(jsonPath("$[0].title").value("스프링 부트 실전"))
                 .andExpect(jsonPath("$[0].progressRate").value(50));
 

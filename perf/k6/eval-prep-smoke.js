@@ -155,7 +155,6 @@ export default function () {
               paymentKey: `k6-${RUN_ID}-${user.email}-${uuidv4()}`,
               method: 'CARD',
               amount: finalPrice,
-              issuedCouponId: null,
               idempotencyKey: `k6-${RUN_ID}-${orderId}-${uuidv4()}`,
             },
             { api: 'payments.mock_confirm' },

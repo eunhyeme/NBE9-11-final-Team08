@@ -11,7 +11,7 @@ import org.springframework.stereotype.Component;
 public class BulkDataInitializer {
 
     /** 대량(성능 테스트용): seedConfig */
-    private static final SeedConfig CONFIG = new SeedConfig(20, 5, 10, 3, 1000, 50, 500);
+    private static final SeedConfig CONFIG = new SeedConfig(20, 5, 10, 3, 1000, 500);
 
     private final DataSeeder dataSeeder;
 

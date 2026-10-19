@@ -213,13 +213,13 @@ class ChapterServiceTest {
         Long courseId = 1L;
         Long userId = 1L;
 
-        willThrow(new CustomException(ErrorCode.STUDY_ACCESS_DENIED))
+        willThrow(new CustomException(ErrorCode.COURSE_ACCESS_DENIED))
                 .given(lectureAccessValidator).validateCourseAccess(courseId, userId);
 
         assertThatThrownBy(() -> chapterService.getLastWatchedLecture(courseId, userId))
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())
-                .isEqualTo(ErrorCode.STUDY_ACCESS_DENIED);
+                .isEqualTo(ErrorCode.COURSE_ACCESS_DENIED);
     }
 
     // ── 챕터 첫 강의 입장 ──────────────────────────────────────────────────

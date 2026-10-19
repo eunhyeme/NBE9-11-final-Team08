@@ -43,7 +43,7 @@ export function EnrolledCard({ course }: { course: EnrolledCourse }) {
         </div>
 
         <Button asChild size="sm" className="mt-4 w-full" variant={course.progress === 100 ? 'outline' : 'default'}>
-          <Link href={`/study/${course.id}`}>
+          <Link href={`/learn/${course.courseId ?? course.id}`}>
             {course.progress === 0
               ? '학습 시작'
               : course.progress === 100

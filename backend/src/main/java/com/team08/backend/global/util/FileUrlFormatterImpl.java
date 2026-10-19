@@ -48,6 +48,6 @@ public class FileUrlFormatterImpl implements FileUrlFormatter {
         if (bucket != null && !bucket.isBlank()) {
             return "https://" + bucket + ".s3.ap-northeast-2.amazonaws.com/" + thumbnailPath;
         }
-        return thumbnailPath;
+        return localVideoUrlPrefix + thumbnailPath;
     }
 }

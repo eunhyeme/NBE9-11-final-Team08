@@ -1,7 +1,7 @@
 package com.team08.backend.domain.media.service;
 
 import com.team08.backend.global.exception.CustomException;
-import com.team08.backend.global.util.S3FileStorageService;
+import com.team08.backend.global.util.FileStorageService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -24,7 +24,7 @@ import static org.mockito.Mockito.*;
 class S3VideoEncodingServiceTest {
 
     @Mock
-    private S3FileStorageService s3FileStorageService;
+    private FileStorageService fileStorageService;
 
     @Mock
     private EncodingResultHandler encodingResultHandler;
@@ -54,52 +54,52 @@ class S3VideoEncodingServiceTest {
     @Test
     void S3_임시_경로로_원본_비디오_업로드_실패_시_예외를_던지고_로컬_임시_자원을_정리한다() {
         doThrow(new RuntimeException())
-                .when(s3FileStorageService)
+                .when(fileStorageService)
                 .uploadFile(any(File.class), anyString());
 
         assertThrows(CustomException.class, () ->
                 s3VideoEncodingService.encodeToHls(mockFile, targetDirName, lectureId)
         );
 
-        verify(s3FileStorageService, never()).deleteFile(anyString());
+        verify(fileStorageService, never()).deleteFile(anyString());
     }
 
     @Test
     void S3로부터_원본_비디오_다운로드_실패_시_예외를_던지고_임시_파일을_삭제한다() {
-        given(s3FileStorageService.uploadFile(any(File.class), anyString())).willReturn("path");
+        given(fileStorageService.uploadFile(any(File.class), anyString())).willReturn("path");
         doThrow(new RuntimeException())
-                .when(s3FileStorageService)
+                .when(fileStorageService)
                 .downloadFile(anyString(), any(File.class));
 
         assertThrows(CustomException.class, () ->
                 s3VideoEncodingService.encodeToHls(mockFile, targetDirName, lectureId)
         );
 
-        verify(s3FileStorageService, times(1)).deleteFile(eq("videos/temp/" + targetDirName + ".mp4"));
+        verify(fileStorageService, times(1)).deleteFile(eq("videos/temp/" + targetDirName + ".mp4"));
     }
 
     @Test
     void 인코딩_프로세스_수행_중_에러가_발생하면_예외를_던지고_임시_파일을_삭제한다() {
-        given(s3FileStorageService.uploadFile(any(File.class), anyString())).willReturn("path");
-        given(s3FileStorageService.downloadFile(anyString(), any(File.class))).willReturn(mock(File.class));
+        given(fileStorageService.uploadFile(any(File.class), anyString())).willReturn("path");
+        given(fileStorageService.downloadFile(anyString(), any(File.class))).willReturn(mock(File.class));
 
         assertThrows(CustomException.class, () ->
                 s3VideoEncodingService.encodeToHls(mockFile, targetDirName, lectureId)
         );
 
-        verify(s3FileStorageService, times(1)).deleteFile(eq("videos/temp/" + targetDirName + ".mp4"));
+        verify(fileStorageService, times(1)).deleteFile(eq("videos/temp/" + targetDirName + ".mp4"));
     }
 
     @Test
     void 인코딩은_성공했으나_생성된_HLS_파편_파일이_없으면_예외를_던진다() {
-        given(s3FileStorageService.uploadFile(any(File.class), anyString())).willReturn("path");
-        given(s3FileStorageService.downloadFile(anyString(), any(File.class))).willReturn(mock(File.class));
+        given(fileStorageService.uploadFile(any(File.class), anyString())).willReturn("path");
+        given(fileStorageService.downloadFile(anyString(), any(File.class))).willReturn(mock(File.class));
 
         assertThrows(CustomException.class, () ->
                 s3VideoEncodingService.encodeToHls(mockFile, targetDirName, lectureId)
         );
 
-        verify(s3FileStorageService, times(1)).deleteFile(eq("videos/temp/" + targetDirName + ".mp4"));
+        verify(fileStorageService, times(1)).deleteFile(eq("videos/temp/" + targetDirName + ".mp4"));
         verifyNoInteractions(encodingResultHandler);
     }
 
@@ -109,6 +109,6 @@ class S3VideoEncodingServiceTest {
 
         s3VideoEncodingService.deleteEncodedFolder(targetDirName, lectureId);
 
-        verify(s3FileStorageService, times(1)).deleteDirectory(expectedPrefix);
+        verify(fileStorageService, times(1)).deleteDirectory(expectedPrefix);
     }
 }

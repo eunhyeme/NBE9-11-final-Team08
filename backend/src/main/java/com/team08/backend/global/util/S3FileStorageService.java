@@ -6,6 +6,7 @@ import io.awspring.cloud.s3.S3Template;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
 import java.io.File;
@@ -15,13 +16,15 @@ import java.nio.file.StandardCopyOption;
 
 @Slf4j
 @Component
+@Profile("prod")
 @RequiredArgsConstructor
-public class S3FileStorageService {
+public class S3FileStorageService implements FileStorageService {
 
     @Value("${cloud.aws.s3.bucket}")
     private String bucket;
     private final S3Template s3Template;
 
+    @Override
     public String uploadFile(InputStream inputStream, String s3Key) {
         try {
             s3Template.upload(bucket, s3Key, inputStream);
@@ -32,6 +35,7 @@ public class S3FileStorageService {
         }
     }
 
+    @Override
     public String uploadFile(File file, String s3Key) {
         try (InputStream is = Files.newInputStream(file.toPath())) {
             s3Template.upload(bucket, s3Key, is);
@@ -42,6 +46,7 @@ public class S3FileStorageService {
         }
     }
 
+    @Override
     public File downloadFile(String s3Key, File destinationFile) {
         try (InputStream inputStream = s3Template.download(bucket, s3Key).getInputStream()) {
             Files.copy(inputStream, destinationFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
@@ -52,6 +57,7 @@ public class S3FileStorageService {
         }
     }
 
+    @Override
     public void deleteFile(String s3Key) {
         try {
             s3Template.deleteObject(bucket, s3Key);
@@ -61,6 +67,7 @@ public class S3FileStorageService {
         }
     }
 
+    @Override
     public void deleteDirectory(String s3Prefix) {
         try {
             s3Template.listObjects(bucket, s3Prefix).forEach(s3Resource -> {
@@ -75,4 +82,4 @@ public class S3FileStorageService {
             throw new CustomException(ErrorCode.S3_DELETE_FAILED);
         }
     }
-}
+}

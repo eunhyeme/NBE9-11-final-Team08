@@ -2,7 +2,7 @@ package com.team08.backend.domain.media.service;
 
 import com.team08.backend.global.exception.CustomException;
 import com.team08.backend.global.exception.ErrorCode;
-import com.team08.backend.global.util.S3FileStorageService;
+import com.team08.backend.global.util.FileStorageService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -26,7 +26,7 @@ import static org.mockito.Mockito.verify;
 class CourseThumbnailServiceImplTest {
 
     @Mock
-    private S3FileStorageService s3FileStorageService;
+    private FileStorageService fileStorageService;
 
     @InjectMocks
     private CourseThumbnailServiceImpl courseThumbnailService;
@@ -38,13 +38,13 @@ class CourseThumbnailServiceImplTest {
                 "thumbnail", "강의썸네일.png", "image/png", "mock-image-bytes".getBytes()
         );
 
-        given(s3FileStorageService.uploadFile(any(InputStream.class), contains("courses/thumbnails/100/"))).willReturn("courses/thumbnails/100/generated-uuid.png");
+        given(fileStorageService.uploadFile(any(InputStream.class), contains("courses/thumbnails/100/"))).willReturn("courses/thumbnails/100/generated-uuid.png");
 
         String resultKey = courseThumbnailService.uploadThumbnail(courseId, mockFile);
 
         assertThat(resultKey).contains("courses/thumbnails/100/");
         assertThat(resultKey).endsWith(".png");
-        verify(s3FileStorageService).uploadFile(any(InputStream.class), contains("courses/thumbnails/100/"));
+        verify(fileStorageService).uploadFile(any(InputStream.class), contains("courses/thumbnails/100/"));
     }
 
     @Test
@@ -58,7 +58,7 @@ class CourseThumbnailServiceImplTest {
         assertThat(resultNull).isNull();
         assertThat(resultEmpty).isNull();
 
-        verify(s3FileStorageService, never()).uploadFile(any(InputStream.class), any(String.class));
+        verify(fileStorageService, never()).uploadFile(any(InputStream.class), any(String.class));
     }
 
     @Test
@@ -68,12 +68,12 @@ class CourseThumbnailServiceImplTest {
                 "thumbnail", "test-file", "image/jpeg", "mock-image-bytes".getBytes()
         );
 
-        given(s3FileStorageService.uploadFile(any(InputStream.class), contains(".jpg"))).willReturn("courses/thumbnails/100/uuid.jpg");
+        given(fileStorageService.uploadFile(any(InputStream.class), contains(".jpg"))).willReturn("courses/thumbnails/100/uuid.jpg");
 
         String resultKey = courseThumbnailService.uploadThumbnail(courseId, jpegFile);
 
         assertThat(resultKey).endsWith(".jpg");
-        verify(s3FileStorageService).uploadFile(any(InputStream.class), contains(".jpg"));
+        verify(fileStorageService).uploadFile(any(InputStream.class), contains(".jpg"));
     }
 
     @Test
@@ -83,12 +83,12 @@ class CourseThumbnailServiceImplTest {
                 "thumbnail", "no-extension-filename", "image/png", "mock-image-bytes".getBytes()
         );
 
-        given(s3FileStorageService.uploadFile(any(InputStream.class), contains(".png"))).willReturn("courses/thumbnails/100/uuid.png");
+        given(fileStorageService.uploadFile(any(InputStream.class), contains(".png"))).willReturn("courses/thumbnails/100/uuid.png");
 
         String resultKey = courseThumbnailService.uploadThumbnail(courseId, noExtensionFile);
 
         assertThat(resultKey).endsWith(".png");
-        verify(s3FileStorageService).uploadFile(any(InputStream.class), contains(".png"));
+        verify(fileStorageService).uploadFile(any(InputStream.class), contains(".png"));
     }
 
     @Test
@@ -97,19 +97,19 @@ class CourseThumbnailServiceImplTest {
 
         courseThumbnailService.deleteThumbnail(s3Key);
 
-        verify(s3FileStorageService).deleteFile(s3Key);
+        verify(fileStorageService).deleteFile(s3Key);
     }
 
     @Test
     void S3에서_썸네일_삭제_중_예외가_발생해도_상위_비즈니스_로직으로_예외를_던지지_않는다() {
         String s3Key = "courses/thumbnails/100/file.png";
         willThrow(new CustomException(ErrorCode.S3_DELETE_FAILED))
-                .given(s3FileStorageService).deleteFile(s3Key);
+                .given(fileStorageService).deleteFile(s3Key);
 
         assertThatCode(() -> courseThumbnailService.deleteThumbnail(s3Key))
                 .doesNotThrowAnyException();
 
-        verify(s3FileStorageService).deleteFile(s3Key);
+        verify(fileStorageService).deleteFile(s3Key);
     }
 
     @Test
@@ -117,6 +117,6 @@ class CourseThumbnailServiceImplTest {
         courseThumbnailService.deleteThumbnail(null);
         courseThumbnailService.deleteThumbnail("   ");
 
-        verify(s3FileStorageService, never()).deleteFile(any(String.class));
+        verify(fileStorageService, never()).deleteFile(any(String.class));
     }
 }

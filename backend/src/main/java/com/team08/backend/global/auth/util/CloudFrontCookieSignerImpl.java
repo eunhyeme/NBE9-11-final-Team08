@@ -20,7 +20,7 @@ import java.util.Base64;
 
 @Slf4j
 @Component
-@Profile("!test")
+@Profile("prod")
 public class CloudFrontCookieSignerImpl implements CloudFrontCookieSigner {
 
     private static final String DUMMY_SIGNATURE = "dummy-signature";

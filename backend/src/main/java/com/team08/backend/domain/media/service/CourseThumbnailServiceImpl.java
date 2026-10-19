@@ -2,7 +2,7 @@ package com.team08.backend.domain.media.service;
 
 import com.team08.backend.global.exception.CustomException;
 import com.team08.backend.global.exception.ErrorCode;
-import com.team08.backend.global.util.S3FileStorageService;
+import com.team08.backend.global.util.FileStorageService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -16,7 +16,7 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class CourseThumbnailServiceImpl implements CourseThumbnailService {
 
-    private final S3FileStorageService s3FileStorageService;
+    private final FileStorageService fileStorageService;
 
     @Override
     public String uploadThumbnail(Long courseId, MultipartFile file) {
@@ -28,7 +28,7 @@ public class CourseThumbnailServiceImpl implements CourseThumbnailService {
             String extension = getFileExtension(file);
             String s3Key = "courses/thumbnails/" + courseId + "/" + UUID.randomUUID() + extension;
 
-            return s3FileStorageService.uploadFile(is, s3Key);
+            return fileStorageService.uploadFile(is, s3Key);
         } catch (Exception e) {
             log.error("[S3 업로드 최종 실패] S3 스토리지 장애 발생. 원인: {}", e.getMessage(), e);
             throw new CustomException(ErrorCode.S3_UPLOAD_FAILED);
@@ -41,7 +41,7 @@ public class CourseThumbnailServiceImpl implements CourseThumbnailService {
             return;
         }
         try {
-            s3FileStorageService.deleteFile(s3Key);
+            fileStorageService.deleteFile(s3Key);
         } catch (Exception e) {
             log.error("Failed to delete thumbnail from S3. key: {}", s3Key, e);
         }

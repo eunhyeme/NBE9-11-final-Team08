@@ -1,4 +1,8 @@
 spring:
+  cloud:
+    aws:
+      s3:
+        enabled: false
   ai:
     model:
       chat: none
@@ -36,10 +40,20 @@ app:
       same-site: Lax
       domain:
 
+# 로컬에서는 S3/CloudFront 대신 LocalFileStorageService, LocalCloudFrontCookieSigner 사용
+# → AWS 관련 env 없이 부팅되도록 placeholder를 빈 값으로 덮어쓴다.
 cloud:
   aws:
+    credentials:
+      access-key: ""
+      secret-key: ""
+    s3:
+      bucket: ""
     cloudfront:
       enabled: false
+      distribution-domain: ""
+      key-pair-id: ""
+      private-key: ""
 
 file:
   upload-dir: ${LOCAL_UPLOAD_DIR:./videos-local}

@@ -1,6 +1,6 @@
 package com.team08.backend.domain.fixture;
 
-import com.team08.backend.domain.user.entity.User;
+import com.team08.backend.domain.member.user.entity.User;
 import org.springframework.test.util.ReflectionTestUtils;
 
 public final class UserFixture {

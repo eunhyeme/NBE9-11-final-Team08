@@ -1,0 +1,126 @@
+package com.team08.backend.domain.content.course.service;
+ 
+import com.team08.backend.domain.content.course.repository.CourseRepository;
+import io.micrometer.core.instrument.MeterRegistry;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
+ 
+import java.util.Set;
+import java.util.concurrent.TimeUnit;
+ 
+@Slf4j
+@Component
+@RequiredArgsConstructor
+public class CourseViewCountRedisManager {
+ 
+    private static final String KEY_PREFIX = "{course:viewcount}:delta:";
+    private static final String KEY_SET_PREFIX = "{course:viewcount}:active_ids";
+    private static final String LOCK_KEY_PREFIX = "{course:viewcount}:lock:";
+    private static final long LOCK_TTL_MINUTES = 5;
+ 
+    private final StringRedisTemplate redisTemplate;
+    private final CourseRepository courseRepository;
+    private final CourseDetailCacheManager courseDetailCacheManager;
+    private final MeterRegistry meterRegistry;
+ 
+ 
+    public void increaseViewCount(Long courseId, String userIdentifier) {
+        try {
+            String lockKey = LOCK_KEY_PREFIX + courseId + ":" + userIdentifier;
+            Boolean isFirstView = redisTemplate.opsForValue().setIfAbsent(lockKey, "1", LOCK_TTL_MINUTES, TimeUnit.MINUTES);
+            
+            if (isFirstView != null && isFirstView) {
+                String key = KEY_PREFIX + courseId;
+                redisTemplate.opsForValue().increment(key);
+                redisTemplate.expire(key, 1, TimeUnit.HOURS);
+                redisTemplate.opsForSet().add(KEY_SET_PREFIX, String.valueOf(courseId));
+            } else {
+                log.debug("[조회수 중복 증가 차단] courseId={}, user={}", courseId, userIdentifier);
+            }
+        } catch (Exception e) {
+            log.warn("[Redis 조회수 가산 실패] RDB Fallback으로 우회합니다. courseId={}, user={}", courseId, userIdentifier, e);
+            meterRegistry.counter("redis.viewcount.errors", "operation", "increase").increment();
+            throw e;
+        }
+    }
+ 
+
+    public int getViewCountDelta(Long courseId) {
+        try {
+            String key = KEY_PREFIX + courseId;
+            String val = redisTemplate.opsForValue().get(key);
+            return val != null ? Integer.parseInt(val) : 0;
+        } catch (NumberFormatException e) {
+            return 0;
+        } catch (Exception e) {
+            meterRegistry.counter("redis.viewcount.errors", "operation", "getDelta").increment();
+            return 0;
+        }
+    }
+ 
+
+    @Transactional
+    @Scheduled(fixedDelay = 10000)
+    public void syncViewCountsToDb() {
+        Boolean hasKey = false;
+        try {
+            hasKey = redisTemplate.hasKey(KEY_SET_PREFIX);
+        } catch (Exception e) {
+            log.error("[조회수 동기화] 활성 ID 키 존재 여부 확인 실패", e);
+            meterRegistry.counter("redis.viewcount.errors", "operation", "sync_check_key").increment();
+            return;
+        }
+
+        if (hasKey == null || !hasKey) {
+            return;
+        }
+
+        String tempKey = KEY_SET_PREFIX + ":temp:" + System.currentTimeMillis();
+        Set<String> activeIds = null;
+        try {
+            redisTemplate.rename(KEY_SET_PREFIX, tempKey);
+            activeIds = redisTemplate.opsForSet().members(tempKey);
+        } catch (Exception e) {
+            log.error("[조회수 동기화] 활성 ID 임시 격리 및 조회 실패", e);
+            meterRegistry.counter("redis.viewcount.errors", "operation", "sync_isolate_ids").increment();
+            return;
+        }
+ 
+        if (activeIds == null || activeIds.isEmpty()) {
+            redisTemplate.delete(tempKey);
+            return;
+        }
+ 
+        for (String idStr : activeIds) {
+            String key = KEY_PREFIX + idStr;
+            int delta = 0;
+            try {
+                String deltaStr = redisTemplate.opsForValue().getAndSet(key, "0");
+                if (deltaStr != null) {
+                    delta = Integer.parseInt(deltaStr);
+                    if (delta > 0) {
+                        Long courseId = Long.parseLong(idStr);
+                        courseRepository.increaseViewCountByDelta(courseId, delta);
+                        courseDetailCacheManager.evictCache(courseId);
+                        log.debug("[조회수 동기화 완료] Course: {}, Delta: {}", courseId, delta);
+                    }
+                }
+            } catch (Exception e) {
+                // TODO: Consider DLQ storage if view count strictness increases in the future
+                log.error("[조회수 동기화 최종 실패] RDB 반영 중 예외가 발생하여 조회수 델타가 유실되었습니다. CourseId: {}, Lost Delta: {}", idStr, delta, e);
+                meterRegistry.counter("redis.viewcount.errors", "operation", "sync_write_db").increment();
+            }
+        }
+
+        try {
+            redisTemplate.delete(tempKey);
+        } catch (Exception e) {
+            log.error("[조회수 동기화] 임시 격리 키 삭제 실패: {}", tempKey, e);
+            meterRegistry.counter("redis.viewcount.errors", "operation", "sync_delete_temp").increment();
+        }
+    }
+}

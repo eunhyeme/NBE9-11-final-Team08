@@ -1,8 +1,8 @@
 package com.team08.backend.global.auth.filter;
 
-import com.team08.backend.domain.auth.token.AccessCookieProperties;
-import com.team08.backend.domain.auth.token.JwtProvider;
-import com.team08.backend.domain.user.dto.LoginUserDto;
+import com.team08.backend.domain.member.auth.token.AccessCookieProperties;
+import com.team08.backend.domain.member.auth.token.JwtProvider;
+import com.team08.backend.domain.member.user.dto.LoginUserDto;
 import com.team08.backend.global.auth.principal.LoginUserPrincipal;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.FilterChain;

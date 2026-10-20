@@ -1,6 +1,6 @@
 package com.team08.backend.global.auth.principal;
 
-import com.team08.backend.domain.user.dto.LoginUserDto;
+import com.team08.backend.domain.member.user.dto.LoginUserDto;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 

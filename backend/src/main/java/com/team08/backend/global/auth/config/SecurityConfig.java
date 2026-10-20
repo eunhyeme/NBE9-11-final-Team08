@@ -1,8 +1,8 @@
 package com.team08.backend.global.auth.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.team08.backend.domain.auth.token.AccessCookieProperties;
-import com.team08.backend.domain.auth.token.JwtProvider;
+import com.team08.backend.domain.member.auth.token.AccessCookieProperties;
+import com.team08.backend.domain.member.auth.token.JwtProvider;
 import com.team08.backend.global.auth.filter.JwtAuthenticationFilter;
 import com.team08.backend.global.auth.handler.JwtAuthenticationEntryPoint;
 import org.springframework.context.annotation.Bean;

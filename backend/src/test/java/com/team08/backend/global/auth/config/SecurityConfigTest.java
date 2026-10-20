@@ -1,9 +1,9 @@
 package com.team08.backend.global.auth.config;
 
-import com.team08.backend.domain.auth.token.AccessCookieProperties;
-import com.team08.backend.domain.auth.token.JwtProvider;
-import com.team08.backend.domain.auth.token.TokenProperties;
-import com.team08.backend.domain.user.dto.LoginUserDto;
+import com.team08.backend.domain.member.auth.token.AccessCookieProperties;
+import com.team08.backend.domain.member.auth.token.JwtProvider;
+import com.team08.backend.domain.member.auth.token.TokenProperties;
+import com.team08.backend.domain.member.user.dto.LoginUserDto;
 import com.team08.backend.global.auth.principal.LoginUserPrincipal;
 import com.team08.backend.global.config.CorsProperties;
 import org.junit.jupiter.api.Test;

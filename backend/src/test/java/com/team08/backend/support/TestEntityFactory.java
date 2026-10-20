@@ -1,7 +1,7 @@
 package com.team08.backend.support;
 
-import com.team08.backend.domain.course.entity.Course;
-import com.team08.backend.domain.user.entity.User;
+import com.team08.backend.domain.content.course.entity.Course;
+import com.team08.backend.domain.member.user.entity.User;
 import org.springframework.test.util.ReflectionTestUtils;
 
 public final class TestEntityFactory {
